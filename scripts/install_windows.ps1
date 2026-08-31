@@ -20,13 +20,14 @@ if (-not (Test-Admin)) {
 $ScriptDir = Split-Path -Parent $PSCommandPath
 $SourceExe = Join-Path $ScriptDir "$App.exe"
 if (-not (Test-Path $SourceExe)) {
-  $SourceExe = Get-ChildItem -Path $ScriptDir -Filter "$($App)_v*_x86_64.exe" | Select-Object -First 1 -ExpandProperty FullName
+  $SourceExe = Get-ChildItem -Path $ScriptDir -Filter "$($App)_v*_windows_*_portable.exe" |
+    Select-Object -First 1 -ExpandProperty FullName
 }
 if (-not $SourceExe -or -not (Test-Path $SourceExe)) {
-  throw "Missing $App executable next to this installer script."
+  throw "Missing portable $App executable next to this installer script. Run the release .exe installer or .msi directly."
 }
 
-if ($SourceExe -match "$($App)_v([0-9]+\.[0-9]+\.[0-9]+[^\\]*)_x86_64\.exe$") {
+if ($SourceExe -match "$($App)_v([0-9]+\.[0-9]+\.[0-9]+[^\\]*)_windows_[^\\]+_portable\.exe$") {
   $Version = $Matches[1]
 }
 
@@ -43,6 +44,7 @@ $Shortcut = $Shell.CreateShortcut((Join-Path $Programs "$DisplayName.lnk"))
 $Shortcut.TargetPath = Join-Path $InstallDir "$App.exe"
 $Shortcut.Arguments = ""
 $Shortcut.WorkingDirectory = $InstallDir
+$Shortcut.IconLocation = "$($Shortcut.TargetPath),0"
 $Shortcut.Save()
 
 $UninstallKey = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\v_color_picker"
@@ -51,6 +53,7 @@ New-ItemProperty -Path $UninstallKey -Name DisplayName -Value $DisplayName -Prop
 New-ItemProperty -Path $UninstallKey -Name DisplayVersion -Value $Version -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $UninstallKey -Name Publisher -Value $Publisher -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $UninstallKey -Name InstallLocation -Value $InstallDir -PropertyType String -Force | Out-Null
+New-ItemProperty -Path $UninstallKey -Name DisplayIcon -Value "$InstallDir\$App.exe" -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $UninstallKey -Name UninstallString -Value "powershell.exe -ExecutionPolicy Bypass -File `"$InstallDir\uninstall_windows.ps1`"" -PropertyType String -Force | Out-Null
 Copy-Item (Join-Path $ScriptDir "uninstall_windows.ps1") (Join-Path $InstallDir "uninstall_windows.ps1") -Force -ErrorAction SilentlyContinue
 

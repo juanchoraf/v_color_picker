@@ -28,9 +28,11 @@ if (-not [Environment]::Is64BitOperatingSystem) {
 $Arch = "x86_64"
 $OutDir = Join-Path $RootDir "versions\$($App)_v$Version"
 $Stage = Join-Path $OutDir "windows_stage"
+$StageExe = Join-Path $Stage "$App.exe"
 $ArtifactArch = "windows_$Arch"
 $ExeAsset = Join-Path $OutDir "$($App)_v$($Version)_$ArtifactArch.exe"
 $MsiAsset = Join-Path $OutDir "$($App)_v$($Version)_$ArtifactArch.msi"
+$PortableExeAsset = Join-Path $OutDir "$($App)_v$($Version)_$($ArtifactArch)_portable.exe"
 $CertDir = Join-Path $RootDir "certs"
 $CertSubject = "CN=TheVelasquez.com v_color_picker Code Signing"
 $CertPassword = "TheVelasquez.com-v_color_picker-local"
@@ -110,7 +112,9 @@ function Get-InnoSetupCompiler {
   return $null
 }
 
+Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $OutDir, $Stage, $CertDir | Out-Null
+Remove-Item -LiteralPath @($ExeAsset, $MsiAsset, $PortableExeAsset) -Force -ErrorAction SilentlyContinue
 if (-not $NoUpdate) {
   Push-Location $RootDir
   try {
@@ -132,7 +136,7 @@ if ($LASTEXITCODE -ne 0) {
   throw "cargo build failed with exit code $LASTEXITCODE"
 }
 
-Copy-Item (Join-Path $RootDir "target\release\$App.exe") (Join-Path $Stage "$App.exe") -Force
+Copy-Item (Join-Path $RootDir "target\release\$App.exe") $StageExe -Force
 Copy-Item (Join-Path $RootDir "assets\logo.svg") (Join-Path $Stage "logo.svg") -Force
 Copy-Item (Join-Path $RootDir "assets\logo.svg") (Join-Path $OutDir "logo.svg") -Force
 
@@ -179,8 +183,8 @@ if (-not $SkipCodeSigning -and [string]::IsNullOrWhiteSpace($SigningThumbprint))
   }
 }
 
-Copy-Item (Join-Path $Stage "$App.exe") $ExeAsset -Force
-Sign-IfPossible -Path $ExeAsset -PfxPath $SigningPfxPath -Password $SigningPassword -Thumbprint $SigningThumbprint
+Sign-IfPossible -Path $StageExe -PfxPath $SigningPfxPath -Password $SigningPassword -Thumbprint $SigningThumbprint
+Copy-Item $StageExe $PortableExeAsset -Force
 
 $Wix = Get-Command wix.exe -ErrorAction SilentlyContinue
 if ($Wix) {
@@ -190,10 +194,12 @@ if ($Wix) {
   <Package Name="$DisplayName" Manufacturer="$Publisher" Version="$Version" UpgradeCode="8f812a7d-4e61-4c59-9fc5-44df6ad67f8a">
     <MajorUpgrade DowngradeErrorMessage="A newer version of $DisplayName is already installed." />
     <MediaTemplate EmbedCab="yes" />
+    <Icon Id="AppIcon" SourceFile="$StageExe" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="v_color_picker">
         <Component Id="MainExecutable" Guid="a3d6d137-7d36-4d77-a164-4f72b5c67266">
-          <File Source="$Stage\$App.exe" KeyPath="yes" />
+          <File Source="$StageExe" KeyPath="yes" />
           <File Source="$Stage\logo.svg" />
         </Component>
       </Directory>
@@ -201,7 +207,7 @@ if ($Wix) {
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="AppProgramMenuFolder" Name="$DisplayName">
         <Component Id="StartMenuShortcut" Guid="55df50a0-1331-4f0c-a29e-a4b377a03123">
-          <Shortcut Id="StartMenuShortcutLink" Name="$DisplayName" Target="[INSTALLFOLDER]$App.exe" WorkingDirectory="INSTALLFOLDER" />
+          <Shortcut Id="StartMenuShortcutLink" Name="$DisplayName" Target="[INSTALLFOLDER]$App.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
           <RemoveFolder Id="RemoveAppProgramMenuFolder" On="uninstall" />
           <RegistryValue Root="HKLM" Key="Software\TheVelasquez.com\v_color_picker" Name="installed" Type="integer" Value="1" KeyPath="yes" />
         </Component>
@@ -241,16 +247,17 @@ ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
 UninstallDisplayName=$DisplayName
+UninstallDisplayIcon={app}\$App.exe
 Compression=lzma2
 SolidCompression=yes
 
 [Files]
-Source: "$Stage\$App.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "$StageExe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "$Stage\logo.svg"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\$DisplayName"; Filename: "{app}\$App.exe"; WorkingDir: "{app}"
-Name: "{autodesktop}\$DisplayName"; Filename: "{app}\$App.exe"; WorkingDir: "{app}"
+Name: "{group}\$DisplayName"; Filename: "{app}\$App.exe"; WorkingDir: "{app}"; IconFilename: "{app}\$App.exe"; AppUserModelID: "com.thevelasquez.v_color_picker"
+Name: "{autodesktop}\$DisplayName"; Filename: "{app}\$App.exe"; WorkingDir: "{app}"; IconFilename: "{app}\$App.exe"; AppUserModelID: "com.thevelasquez.v_color_picker"
 
 [Run]
 Filename: "{app}\$App.exe"; Description: "Open $DisplayName"; Flags: postinstall skipifsilent nowait
@@ -261,7 +268,7 @@ Filename: "{app}\$App.exe"; Description: "Open $DisplayName"; Flags: postinstall
   }
   Sign-IfPossible -Path $ExeAsset -PfxPath $SigningPfxPath -Password $SigningPassword -Thumbprint $SigningThumbprint
 } else {
-  Write-Warning "Inno Setup ISCC.exe not found; kept the signed portable .exe asset."
+  Write-Warning "Inno Setup ISCC.exe not found; skipped .exe installer packaging. Portable app binary: $PortableExeAsset"
 }
 
 Copy-Item (Join-Path $RootDir "scripts\install_windows.ps1") (Join-Path $OutDir "$($App)_v$($Version)_$($ArtifactArch)_install.ps1") -Force

@@ -19,6 +19,9 @@ ureq = { version = "3.4.0", features = ["json"] }
 winit = { version = "0.30.13", default-features = false, features = ["wayland-csd-adwaita", "wayland-dlopen"] }
 xcap = "0.9.8"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+eframe = { version = "0.36.1", default-features = false, features = ["wgpu"] }
+
 [patch.crates-io]
 xcap = { path = "vendor/xcap" }
 

@@ -165,6 +165,10 @@ fn arch_score(name: &str) -> Option<i32> {
 }
 
 fn package_score(name: &str) -> Option<i32> {
+    if name.contains("portable") {
+        return None;
+    }
+
     #[cfg(target_os = "windows")]
     {
         return if name.ends_with(".msi") {

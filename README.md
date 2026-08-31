@@ -24,7 +24,7 @@ Made with AI (Codex) 🤖
 |---------|
 | Pick colors from any visible point on any connected monitor.
 | Works even when the target window is not focused.
-| Uses GPU-backed OpenGL GUI rendering when available, with software fallback kept available.
+| Uses GPU-backed GUI rendering when available, with Windows builds preferring the native WGPU backend.
 | Shows HEX, HEXA, RGB, RGBA, HSL, HSLA, HWB, LAB, LCH, OKLAB, OKLCH, SRGB, SRGB linear, XYZ-D65, and packed U32 values.
 | Alpha slider, zoom slider, related palette, alternatives, copy buttons, pick history, version, update checks, and update installation.
 | Release scripts for 64-bit Linux, macOS, and Windows packaging.
