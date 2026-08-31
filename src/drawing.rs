@@ -43,6 +43,7 @@ pub fn small_swatch(ui: &mut egui::Ui, color: RgbaColor) -> egui::Response {
 pub enum ButtonIcon {
     Copy,
     Pick,
+    Trash,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,10 +79,12 @@ pub fn icon_button_with_state(
         let content_color = match icon {
             ButtonIcon::Copy => visuals.text_color(),
             ButtonIcon::Pick => accent,
+            ButtonIcon::Trash => visuals.text_color(),
         };
         let border_color = match icon {
             ButtonIcon::Copy => Color32::from_rgb(74, 84, 98),
             ButtonIcon::Pick => accent,
+            ButtonIcon::Trash => Color32::from_rgb(74, 84, 98),
         };
         let (fill, border_color, content_color) = match state {
             ButtonState::Normal => {
@@ -111,6 +114,36 @@ pub fn icon_button_with_state(
     }
 
     response
+}
+
+pub fn icon_only_button(
+    ui: &mut egui::Ui,
+    icon: ButtonIcon,
+    size: Vec2,
+    tooltip: &str,
+) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+
+    if ui.is_rect_visible(rect) {
+        let visuals = ui.style().interact(&response);
+        let border_color = Color32::from_rgb(74, 84, 98);
+        let fill = if response.hovered() {
+            Color32::from_rgb(53, 61, 73)
+        } else {
+            Color32::from_rgb(38, 44, 54)
+        };
+
+        ui.painter().rect_filled(rect, 6.0, fill);
+        ui.painter().rect_stroke(
+            rect,
+            6.0,
+            Stroke::new(1.0, border_color),
+            StrokeKind::Inside,
+        );
+        draw_button_icon(ui.painter(), icon, rect.center(), visuals.text_color());
+    }
+
+    response.on_hover_text(tooltip)
 }
 
 pub fn text_button(ui: &mut egui::Ui, label: &str, size: Vec2) -> egui::Response {
@@ -238,6 +271,42 @@ fn draw_button_icon(painter: &egui::Painter, icon: ButtonIcon, center: Pos2, col
                     center + egui::vec2(0.0, 10.0),
                 ],
                 Stroke::new(1.5, color),
+            );
+        }
+        ButtonIcon::Trash => {
+            let stroke = Stroke::new(1.5, color);
+            let body = Rect::from_min_max(
+                center + egui::vec2(-6.0, -3.0),
+                center + egui::vec2(6.0, 8.0),
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(-8.0, -6.0),
+                    center + egui::vec2(8.0, -6.0),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(-3.5, -8.0),
+                    center + egui::vec2(3.5, -8.0),
+                ],
+                stroke,
+            );
+            painter.rect_stroke(body, 1.5, stroke, StrokeKind::Inside);
+            painter.line_segment(
+                [
+                    center + egui::vec2(-2.5, -1.0),
+                    center + egui::vec2(-2.5, 6.0),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(2.5, -1.0),
+                    center + egui::vec2(2.5, 6.0),
+                ],
+                stroke,
             );
         }
     }

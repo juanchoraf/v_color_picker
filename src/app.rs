@@ -10,6 +10,7 @@ use crate::drawing::{
 };
 use crate::gui_update::{self, GuiUpdate};
 use crate::history::{self, PickRecord};
+use crate::history_view::{self, HistoryAction};
 use crate::icon;
 use crate::picker_overlay::{OverlayAction, PickerOverlay};
 use crate::screen::{ScreenCapture, ScreenSample};
@@ -23,9 +24,6 @@ const PALETTE_HEIGHT: f32 = 143.0;
 const MIN_ZOOM: f32 = 1.0;
 const MAX_ZOOM: f32 = 25.0;
 const DEFAULT_ZOOM: f32 = 17.0;
-const HISTORY_COLUMN_LIMIT: usize = 5;
-const HISTORY_VISIBLE_LIMIT: usize = 10;
-const HISTORY_MAX_HEIGHT: f32 = 132.0;
 const PICK_HIDE_SETTLE_MS: u64 = 16;
 const COPY_FEEDBACK_MS: u64 = 1_500;
 
@@ -222,6 +220,15 @@ impl VColorPickerApp {
             record.x = None;
             record.y = None;
             record.monitor = None;
+        } else {
+            self.history.push(PickRecord {
+                color,
+                source: source.to_owned(),
+                x: None,
+                y: None,
+                monitor: None,
+            });
+            self.selected = 0;
         }
 
         if update_palette_base {
@@ -245,7 +252,7 @@ impl VColorPickerApp {
                 ui.add_space(10.0);
                 ui.separator();
                 ui.add_space(12.0);
-                self.render_color_workspace(ui);
+                self.render_color_workspace(ui, frame);
             });
     }
 
@@ -263,7 +270,7 @@ impl VColorPickerApp {
         });
     }
 
-    fn render_color_workspace(&mut self, ui: &mut egui::Ui) {
+    fn render_color_workspace(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let color = self.selected_color();
         ui.label(RichText::new("Selected Color").strong());
         ui.add_space(4.0);
@@ -315,7 +322,11 @@ impl VColorPickerApp {
         });
 
         ui.add_space(10.0);
-        self.render_history(ui);
+        match history_view::render(ui, &self.history, self.selected) {
+            HistoryAction::None => {}
+            HistoryAction::Select(index) => self.select_history(index),
+            HistoryAction::Clear => self.clear_history(frame.storage_mut()),
+        }
 
         ui.add_space(14.0);
         gui_update::render_bottom_right(ui, &mut self.updates, &mut self.status);
@@ -488,53 +499,26 @@ impl VColorPickerApp {
         (longest * 8.0 + 36.0).ceil().max(84.0)
     }
 
-    fn render_history(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("History").strong());
-        ui.columns(2, |columns| {
-            self.render_history_column(&mut columns[0], 0);
-            self.render_history_column(&mut columns[1], HISTORY_COLUMN_LIMIT);
-        });
-    }
-
-    fn render_history_column(&mut self, ui: &mut egui::Ui, start: usize) {
-        ui.set_min_height(HISTORY_MAX_HEIGHT);
-        ui.spacing_mut().item_spacing.y = 4.0;
-
-        let end = self
-            .history
-            .len()
-            .min(start + HISTORY_COLUMN_LIMIT)
-            .min(HISTORY_VISIBLE_LIMIT);
-
-        for index in start..end {
-            self.render_history_item(ui, index);
+    fn select_history(&mut self, index: usize) {
+        if let Some(record) = self.history.get(index) {
+            self.selected = index;
+            self.alpha = record.color.a as f32 / 255.0;
+            self.palette_base = record.color;
+            self.palette_cursor = [0.5, 0.5];
         }
     }
 
-    fn render_history_item(&mut self, ui: &mut egui::Ui, index: usize) {
-        let record = self.history[index].clone();
-        ui.horizontal(|ui| {
-            ui.set_height(24.0);
-            draw_swatch(
-                ui,
-                record.color,
-                record.color.a as f32 / 255.0,
-                egui::vec2(28.0, 22.0),
-            );
-            let label = record.summary();
-            let label_width = ui.available_width().max(48.0);
-            let response = ui.add(
-                egui::Button::selectable(index == self.selected, label)
-                    .min_size(egui::vec2(label_width, 22.0))
-                    .truncate(),
-            );
-            if response.clicked() {
-                self.selected = index;
-                self.alpha = record.color.a as f32 / 255.0;
-                self.palette_base = record.color;
-                self.palette_cursor = [0.5, 0.5];
-            }
-        });
+    fn clear_history(&mut self, storage: Option<&mut (dyn eframe::Storage + 'static)>) {
+        self.history.clear();
+        self.selected = 0;
+        self.alpha = 1.0;
+        self.palette_base = PickRecord::starter().color;
+        self.palette_cursor = [0.5, 0.5];
+        self.status = "History deleted".to_owned();
+
+        if let Some(storage) = storage {
+            history::save(storage, &self.history);
+        }
     }
 
     fn render_overlay(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {

@@ -5,6 +5,7 @@ mod color;
 mod drawing;
 mod gui_update;
 mod history;
+mod history_view;
 mod icon;
 mod picker_overlay;
 mod screen;

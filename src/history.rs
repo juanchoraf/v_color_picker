@@ -56,11 +56,13 @@ impl PickRecord {
 }
 
 pub fn load(storage: Option<&dyn Storage>) -> Vec<PickRecord> {
-    let mut history = storage
+    let mut history = match storage
         .and_then(|storage| storage.get_string(STORAGE_KEY))
         .and_then(|raw| serde_json::from_str::<PersistedHistory>(&raw).ok())
-        .map(|state| state.history)
-        .unwrap_or_else(|| vec![PickRecord::starter()]);
+    {
+        Some(state) => state.history,
+        None => vec![PickRecord::starter()],
+    };
 
     clamp(&mut history);
     history
@@ -76,9 +78,5 @@ pub fn save(storage: &mut dyn Storage, history: &[PickRecord]) {
 }
 
 pub fn clamp(history: &mut Vec<PickRecord>) {
-    if history.is_empty() {
-        history.push(PickRecord::starter());
-    }
-
     history.truncate(HISTORY_LIMIT);
 }
