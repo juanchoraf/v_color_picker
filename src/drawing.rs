@@ -113,6 +113,48 @@ pub fn icon_button_with_state(
     response
 }
 
+pub fn text_button(ui: &mut egui::Ui, label: &str, size: Vec2) -> egui::Response {
+    let enabled = ui.is_enabled();
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
+    let (rect, response) = ui.allocate_exact_size(size, sense);
+
+    if ui.is_rect_visible(rect) {
+        let visuals = ui.style().interact(&response);
+        let border_color = Color32::from_rgb(74, 84, 98);
+        let content_color = if enabled {
+            visuals.text_color()
+        } else {
+            Color32::from_gray(105)
+        };
+        let fill = if enabled && response.hovered() {
+            Color32::from_rgb(53, 61, 73)
+        } else {
+            Color32::from_rgb(38, 44, 54)
+        };
+
+        ui.painter().rect_filled(rect, 6.0, fill);
+        ui.painter().rect_stroke(
+            rect,
+            6.0,
+            Stroke::new(1.0, border_color),
+            StrokeKind::Inside,
+        );
+        ui.painter().text(
+            rect.center(),
+            Align2::CENTER_CENTER,
+            label,
+            FontId::proportional(14.0),
+            content_color,
+        );
+    }
+
+    response
+}
+
 pub fn draw_crosshair(painter: &egui::Painter, center: Pos2, color: Color32, radius: f32) {
     let stroke = Stroke::new(1.5, color);
     painter.line_segment(

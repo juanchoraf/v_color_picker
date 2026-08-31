@@ -1,4 +1,4 @@
-use egui::IconData;
+use eframe::egui::IconData;
 
 pub fn app_icon() -> IconData {
     const SIZE: usize = 64;

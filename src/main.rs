@@ -1,7 +1,9 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod app;
-mod cli;
 mod color;
 mod drawing;
+mod gui_update;
 mod history;
 mod icon;
 mod picker_overlay;
@@ -12,13 +14,9 @@ use anyhow::Result;
 use eframe::egui;
 
 const APP_WINDOW_WIDTH: f32 = 568.0;
-const APP_WINDOW_HEIGHT: f32 = 712.0;
+const APP_WINDOW_HEIGHT: f32 = 860.0;
 
 fn main() -> Result<()> {
-    if cli::handle_cli(std::env::args().skip(1))? {
-        return Ok(());
-    }
-
     let window_size = egui::vec2(APP_WINDOW_WIDTH, APP_WINDOW_HEIGHT);
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

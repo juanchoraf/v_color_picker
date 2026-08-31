@@ -8,6 +8,7 @@ use crate::drawing::{
     ButtonIcon, ButtonState, draw_crosshair, draw_logo_mark, draw_swatch, egui_color, icon_button,
     icon_button_with_state, small_swatch,
 };
+use crate::gui_update::{self, GuiUpdate};
 use crate::history::{self, PickRecord};
 use crate::icon;
 use crate::picker_overlay::{OverlayAction, PickerOverlay};
@@ -19,6 +20,9 @@ const OUTER_MARGIN: i8 = 24;
 const WORKSPACE_WIDTH: f32 = 520.0;
 const SLIDER_WIDTH: f32 = 220.0;
 const PALETTE_HEIGHT: f32 = 143.0;
+const MIN_ZOOM: f32 = 1.0;
+const MAX_ZOOM: f32 = 25.0;
+const DEFAULT_ZOOM: f32 = 17.0;
 const HISTORY_COLUMN_LIMIT: usize = 5;
 const HISTORY_VISIBLE_LIMIT: usize = 10;
 const HISTORY_MAX_HEIGHT: f32 = 132.0;
@@ -39,6 +43,7 @@ pub struct VColorPickerApp {
     main_window_hidden_for_picker: bool,
     main_focus_retry_frames: u8,
     copy_feedback_until: Option<Instant>,
+    updates: GuiUpdate,
     status: String,
 }
 
@@ -55,7 +60,7 @@ impl VColorPickerApp {
             history,
             selected: 0,
             alpha: selected_color.a as f32 / 255.0,
-            zoom: 11.0,
+            zoom: DEFAULT_ZOOM,
             palette_base: selected_color,
             palette_cursor: [0.5, 0.5],
             selected_format: DEFAULT_FORMAT.to_owned(),
@@ -63,6 +68,7 @@ impl VColorPickerApp {
             main_window_hidden_for_picker: false,
             main_focus_retry_frames: 0,
             copy_feedback_until: None,
+            updates: GuiUpdate::new(),
             status: "Ready".to_owned(),
         }
     }
@@ -310,6 +316,9 @@ impl VColorPickerApp {
 
         ui.add_space(10.0);
         self.render_history(ui);
+
+        ui.add_space(14.0);
+        gui_update::render_bottom_right(ui, &mut self.updates, &mut self.status);
     }
 
     fn render_palette(&mut self, ui: &mut egui::Ui) {
