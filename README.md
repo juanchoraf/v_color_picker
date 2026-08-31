@@ -24,46 +24,34 @@ Made with AI (Codex) 🤖
 |---------|
 | Pick colors from any visible point on any connected monitor.
 | Works even when the target window is not focused.
+| Uses GPU-backed OpenGL GUI rendering when available, with software fallback kept available.
 | Shows HEX, HEXA, RGB, RGBA, HSL, HSLA, HWB, LAB, LCH, OKLAB, OKLCH, SRGB, SRGB linear, XYZ-D65, and packed U32 values.
-| Alpha slider, zoom slider, related palette, alternatives, copy buttons, and pick history.
-| CLI support for version, update checks, update launching, and uninstall hints.
+| Alpha slider, zoom slider, related palette, alternatives, copy buttons, pick history, version, update checks, and update installation.
 | Release scripts for 64-bit Linux, macOS, and Windows packaging.
 
 ## Run
 
-Start the desktop app:
+Start the desktop app during development:
 
 ```sh
 cargo run --release
 ```
 
-Installed app:
-
-```sh
-v_color_picker
-```
+Installed users launch v_color_picker from the operating system app launcher.
 
 Example flow:
 
-1. Open V_Color_Picker.
+1. Open v_color_picker.
 2. Press `Pick`.
 3. Click any pixel on any monitor.
 4. Select the format you need and copy it.
 
-On Windows, installed shortcuts launch the app through PowerShell with `-NoExit`
-so command output remains visible.
+## Updates
 
-## CLI
-
-```sh
-v_color_picker --version
-v_color_picker --check-update --github-repo owner/repo
-v_color_picker --update --github-repo owner/repo
-v_color_picker --uninstall
-```
-
-You can set `V_COLOR_PICKER_GITHUB_REPO=owner/repo` instead of passing
-`--github-repo`.
+`v_color_picker` is GUI-only. The bottom-right controls show the installed
+version and an Update button. Update checks the release source and installs the
+latest matching binary from `https://github.com/juanchoraf/v_color_picker` over
+the current installation when a newer release is available.
 
 ## Notes
 
