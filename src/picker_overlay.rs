@@ -4,6 +4,10 @@ use crate::color;
 use crate::drawing::{draw_crosshair, egui_color};
 use crate::screen::{ScreenCapture, ScreenSample};
 
+const MIN_ZOOM: f32 = 1.0;
+const MAX_ZOOM: f32 = 25.0;
+const ZOOM_GRID_TARGET: f32 = 176.0;
+
 pub(crate) struct PickerOverlay {
     pub(crate) capture: ScreenCapture,
     texture: TextureHandle,
@@ -93,18 +97,16 @@ impl PickerOverlay {
         zoom: f32,
         sample: &ScreenSample,
     ) {
-        let grid = zoom.round().clamp(5.0, 21.0) as i32;
-        let radius = grid / 2;
+        let magnification = zoom.round().clamp(MIN_ZOOM, MAX_ZOOM);
         let padding = 8.0;
         let max_panel_width = (viewport.width() - 8.0).max(48.0);
-        let panel_width = (grid as f32 * 8.0 + padding * 2.0)
-            .max(96.0)
-            .min(max_panel_width);
+        let available_grid = (max_panel_width - padding * 2.0).clamp(48.0, ZOOM_GRID_TARGET);
+        let cell = magnification.min(available_grid).max(1.0);
+        let radius = ((available_grid / cell).floor() as i32 / 2).max(0);
+        let grid_cells = radius * 2 + 1;
+        let grid_size = grid_cells as f32 * cell;
+        let panel_width = (grid_size + padding * 2.0).max(96.0).min(max_panel_width);
         let text_width = (panel_width - padding * 2.0).max(32.0);
-        let cell = ((panel_width - padding * 2.0) / grid as f32)
-            .min(8.0)
-            .max(1.0);
-        let grid_size = grid as f32 * cell;
 
         let painter = ui.painter();
         let hex = color::formats(sample.color, sample.color.a as f32 / 255.0)

@@ -286,7 +286,7 @@ impl VColorPickerApp {
             ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
                 ui.add_sized(
                     egui::vec2(SLIDER_WIDTH, 20.0),
-                    egui::Slider::new(&mut self.zoom, 5.0..=21.0).text("Zoom"),
+                    egui::Slider::new(&mut self.zoom, MIN_ZOOM..=MAX_ZOOM).text("Zoom"),
                 );
             });
 
@@ -514,6 +514,7 @@ impl VColorPickerApp {
     fn render_history_item(&mut self, ui: &mut egui::Ui, index: usize) {
         let record = self.history[index].clone();
         ui.horizontal(|ui| {
+            ui.set_height(24.0);
             draw_swatch(
                 ui,
                 record.color,
@@ -521,7 +522,13 @@ impl VColorPickerApp {
                 egui::vec2(28.0, 22.0),
             );
             let label = record.summary();
-            if ui.selectable_label(index == self.selected, label).clicked() {
+            let label_width = ui.available_width().max(48.0);
+            let response = ui.add(
+                egui::Button::selectable(index == self.selected, label)
+                    .min_size(egui::vec2(label_width, 22.0))
+                    .truncate(),
+            );
+            if response.clicked() {
                 self.selected = index;
                 self.alpha = record.color.a as f32 / 255.0;
                 self.palette_base = record.color;
