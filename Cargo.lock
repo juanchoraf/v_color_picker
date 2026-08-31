@@ -3728,7 +3728,7 @@ dependencies = [
 
 [[package]]
 name = "v_color_picker"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "arboard",
