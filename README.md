@@ -1,4 +1,9 @@
-# V_Color_Picker
+# v_color_picker
+
+[![Release_Badge]][Release_Url]
+[![Build_Badge]][Build_Url]
+[![Dependencies_Badge]][Dependencies_Url]
+![License_Badge](https://img.shields.io/badge/License-Apache--2.0_or_MIT-blue)
 
 `v_color_picker` is a Rust desktop color picker app for Linux, macOS, BSD/Unix-like systems, and Windows. It captures every visible monitor, lets you zoom into the captured desktop, and stores picked colors with copy-ready formats.
 
@@ -238,3 +243,34 @@ state/cache directories for all users.
   the capture backend.
 - Windows `.msi` packaging requires WiX. Windows `.exe` installer packaging
   requires Inno Setup.
+
+## Credits
+
+Powered by The Velasquez.
+
+## License
+
+The `v_color_picker` library is distributed under either of
+
+ * [Apache License, Version 2.0][LICENSE-APACHE]
+ * [MIT license][LICENSE-MIT]
+
+at your convenience.
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+
+[//]: # (badges)
+
+[Release_Badge]: https://github.com/juanchoraf/v_color_picker/actions/workflows/release.yml/badge.svg
+[Release_Url]: https://github.com/juanchoraf/v_color_picker/actions/workflows/release.yml
+[Build_Badge]: https://github.com/juanchoraf/v_color_picker/actions/workflows/rust.yml/badge.svg?branch=main
+[Build_Url]: https://github.com/juanchoraf/v_color_picker/actions?query=branch:main
+[Dependencies_Badge]: https://deps.rs/repo/github/juanchoraf/v_color_picker/status.svg
+[Dependencies_Url]: https://deps.rs/repo/github/juanchoraf/v_color_picker
+
+[//]: # (licenses)
+
+[LICENSE-APACHE]: https://github.com/juanchoraf/v_color_picker/blob/main/LICENSE-APACHE
+[LICENSE-MIT]: https://github.com/juanchoraf/v_color_picker/blob/main/LICENSE-MIT
