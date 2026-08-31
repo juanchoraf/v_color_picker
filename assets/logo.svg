@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="V_Color_Picker logo">
+  <rect width="256" height="256" rx="32" fill="#111820"/>
+  <g transform="rotate(45 128 128)" fill="#888FF6">
+    <rect x="110" y="38" width="36" height="60" rx="12"/>
+    <rect x="100" y="32" width="56" height="24" rx="8"/>
+    <path d="M116 94h24l12 50h-48z"/>
+    <rect x="111" y="136" width="34" height="38" rx="10"/>
+    <path d="M121 170h14l-7 30z"/>
+  </g>
+  <circle cx="69" cy="190" r="20" fill="#26A69A"/>
+</svg>
