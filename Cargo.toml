@@ -1,6 +1,6 @@
 [package]
 name = "v_color_picker"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Fast cross-platform desktop color picker for exact screen colors and CSS color formats."
 authors = ["TheVelasquez.com"]
