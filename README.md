@@ -149,6 +149,8 @@ The Windows script imports the generated certificate into the current user's
 Trusted Publisher and Root stores, then signs assets when `signtool.exe` is
 available. It builds an `.exe` installer when Inno Setup `ISCC.exe` is
 available; otherwise it keeps a signed portable `.exe` and prints a warning.
+For WiX v7 MSI builds, the script passes `-acceptEula wix7`; override that with
+`V_COLOR_PICKER_WIX_EULA_ID` if WiX changes the required EULA ID.
 
 To bump version and package for the current OS:
 

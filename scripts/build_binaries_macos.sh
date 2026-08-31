@@ -74,8 +74,9 @@ fi
 cargo build --release $CARGO_LOCKED --manifest-path "$ROOT_DIR/Cargo.toml"
 
 rm -rf "$APP_BUNDLE" "$PKG_ROOT"
-install -Dm755 "$ROOT_DIR/target/release/$APP" "$APP_BUNDLE/Contents/MacOS/$APP"
-install -Dm644 "$ROOT_DIR/assets/logo.svg" "$APP_BUNDLE/Contents/Resources/logo.svg"
+mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
+install -m 755 "$ROOT_DIR/target/release/$APP" "$APP_BUNDLE/Contents/MacOS/$APP"
+install -m 644 "$ROOT_DIR/assets/logo.svg" "$APP_BUNDLE/Contents/Resources/logo.svg"
 
 cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

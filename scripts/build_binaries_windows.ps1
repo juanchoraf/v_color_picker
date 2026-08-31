@@ -7,7 +7,8 @@ param(
   [string]$CodeSigningCertPath = $env:V_COLOR_PICKER_CODESIGN_PFX,
   [string]$CodeSigningCertPassword = $env:V_COLOR_PICKER_CODESIGN_PASSWORD,
   [string]$CodeSigningCertThumbprint = $env:V_COLOR_PICKER_CODESIGN_THUMBPRINT,
-  [string]$CodeSigningTimestampUrl = $(if ($env:V_COLOR_PICKER_CODESIGN_TIMESTAMP_URL) { $env:V_COLOR_PICKER_CODESIGN_TIMESTAMP_URL } else { "http://timestamp.digicert.com" })
+  [string]$CodeSigningTimestampUrl = $(if ($env:V_COLOR_PICKER_CODESIGN_TIMESTAMP_URL) { $env:V_COLOR_PICKER_CODESIGN_TIMESTAMP_URL } else { "http://timestamp.digicert.com" }),
+  [string]$WixEulaId = $(if ($env:V_COLOR_PICKER_WIX_EULA_ID) { $env:V_COLOR_PICKER_WIX_EULA_ID } else { "wix7" })
 )
 
 $ErrorActionPreference = "Stop"
@@ -218,7 +219,8 @@ if ($Wix) {
   </Package>
 </Wix>
 "@
-  & $Wix.Source build -arch x64 -o $MsiAsset $Wxs
+  $WixArgs = @("build", "-acceptEula", $WixEulaId, "-arch", "x64", "-o", $MsiAsset, $Wxs)
+  & $Wix.Source @WixArgs
   if ($LASTEXITCODE -ne 0) {
     throw "wix.exe failed with exit code $LASTEXITCODE"
   }
