@@ -1,0 +1,577 @@
+use std::time::{Duration, Instant};
+
+use arboard::Clipboard;
+use eframe::egui::{self, Align, Color32, Layout, Rect, RichText, Sense};
+
+use crate::color::{self, ColorFormat, RgbaColor};
+use crate::drawing::{
+    ButtonIcon, ButtonState, draw_crosshair, draw_logo_mark, draw_swatch, egui_color, icon_button,
+    icon_button_with_state, small_swatch,
+};
+use crate::history::{self, PickRecord};
+use crate::icon;
+use crate::picker_overlay::{OverlayAction, PickerOverlay};
+use crate::screen::{ScreenCapture, ScreenSample};
+
+const PICKER_VIEWPORT: &str = "v_color_picker_picker_overlay";
+const DEFAULT_FORMAT: &str = "HEX";
+const OUTER_MARGIN: i8 = 24;
+const WORKSPACE_WIDTH: f32 = 520.0;
+const PALETTE_HEIGHT: f32 = 143.0;
+const HISTORY_COLUMN_LIMIT: usize = 5;
+const HISTORY_VISIBLE_LIMIT: usize = 10;
+const HISTORY_MAX_HEIGHT: f32 = 132.0;
+const PICK_HIDE_SETTLE_MS: u64 = 16;
+const COPY_FEEDBACK_MS: u64 = 1_500;
+
+pub const APP_TITLE: &str = "V_Color_Picker";
+
+pub struct VColorPickerApp {
+    history: Vec<PickRecord>,
+    selected: usize,
+    alpha: f32,
+    zoom: f32,
+    palette_base: RgbaColor,
+    palette_cursor: [f32; 2],
+    selected_format: String,
+    overlay: Option<PickerOverlay>,
+    main_window_hidden_for_picker: bool,
+    main_focus_retry_frames: u8,
+    copy_feedback_until: Option<Instant>,
+    status: String,
+}
+
+impl VColorPickerApp {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        let history = history::load(cc.storage);
+        let selected_color = history
+            .first()
+            .map(|record| record.color)
+            .unwrap_or_else(|| PickRecord::starter().color);
+
+        Self {
+            history,
+            selected: 0,
+            alpha: selected_color.a as f32 / 255.0,
+            zoom: 11.0,
+            palette_base: selected_color,
+            palette_cursor: [0.5, 0.5],
+            selected_format: DEFAULT_FORMAT.to_owned(),
+            overlay: None,
+            main_window_hidden_for_picker: false,
+            main_focus_retry_frames: 0,
+            copy_feedback_until: None,
+            status: "Ready".to_owned(),
+        }
+    }
+
+    fn selected_color(&self) -> RgbaColor {
+        self.history
+            .get(self.selected)
+            .map(|record| record.color)
+            .unwrap_or(RgbaColor::new(80, 186, 255, 255))
+    }
+
+    fn selected_formats(&self) -> Vec<ColorFormat> {
+        color::formats(self.selected_color(), self.alpha)
+    }
+
+    fn start_pick(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if self.overlay.is_some() {
+            return;
+        }
+
+        self.status = "Capturing screens".to_owned();
+
+        if let Some(window) = frame.winit_window() {
+            window.set_visible(false);
+            self.main_window_hidden_for_picker = true;
+            std::thread::sleep(Duration::from_millis(PICK_HIDE_SETTLE_MS));
+        }
+
+        let result = ScreenCapture::capture_all();
+
+        match result {
+            Ok(capture) => {
+                let image = capture.to_color_image();
+                let texture = ctx.load_texture(
+                    "v_color_picker_screen",
+                    image,
+                    egui::TextureOptions::NEAREST,
+                );
+                let count = capture.monitors.len();
+                self.overlay = Some(PickerOverlay::new(capture, texture, true));
+                self.status = format!("Picker armed across {count} monitor(s)");
+                ctx.request_repaint();
+            }
+            Err(error) => {
+                if let Some(window) = frame.winit_window() {
+                    window.set_visible(true);
+                    window.request_redraw();
+                }
+                self.main_window_hidden_for_picker = false;
+                self.status = format!("Capture failed: {error}");
+            }
+        }
+    }
+
+    fn restore_main_window(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.bring_main_window_forward(ctx, frame);
+        ctx.send_viewport_cmd_to(
+            egui::ViewportId::ROOT,
+            egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational),
+        );
+        self.main_window_hidden_for_picker = false;
+        self.main_focus_retry_frames = 6;
+        ctx.request_repaint();
+    }
+
+    fn bring_main_window_forward(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if let Some(window) = frame.winit_window() {
+            window.set_visible(true);
+            window.set_minimized(false);
+            window.request_redraw();
+            window.focus_window();
+        }
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd_to(
+            egui::ViewportId::ROOT,
+            egui::ViewportCommand::Minimized(false),
+        );
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
+    }
+
+    fn show_main_window_behind_picker(&mut self, ctx: &egui::Context) {
+        if !self.main_window_hidden_for_picker {
+            return;
+        }
+
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd_to(
+            egui::ViewportId::ROOT,
+            egui::ViewportCommand::Minimized(false),
+        );
+        self.main_window_hidden_for_picker = false;
+        ctx.request_repaint();
+    }
+
+    fn apply_pending_main_focus(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if self.main_focus_retry_frames == 0 {
+            return;
+        }
+
+        self.bring_main_window_forward(ctx, frame);
+        self.main_focus_retry_frames -= 1;
+
+        if self.main_focus_retry_frames > 0 {
+            ctx.request_repaint_after(Duration::from_millis(16));
+        }
+    }
+
+    fn add_sample(&mut self, sample: ScreenSample) {
+        let color = sample.color;
+        self.history.insert(0, PickRecord::from_sample(sample));
+        history::clamp(&mut self.history);
+        self.selected = 0;
+        self.alpha = color.a as f32 / 255.0;
+        self.palette_base = color;
+        self.palette_cursor = [0.5, 0.5];
+        self.status = "Color picked".to_owned();
+    }
+
+    fn copy_text(&mut self, ctx: &egui::Context, value: &str) {
+        match Clipboard::new().and_then(|mut clipboard| clipboard.set_text(value.to_owned())) {
+            Ok(()) => self.status = format!("Copied {value}"),
+            Err(_) => {
+                ctx.copy_text(value.to_owned());
+                self.status = format!("Copied {value}");
+            }
+        }
+
+        self.copy_feedback_until = Some(Instant::now() + Duration::from_millis(COPY_FEEDBACK_MS));
+        ctx.request_repaint_after(Duration::from_millis(COPY_FEEDBACK_MS));
+    }
+
+    fn copy_button_state(&mut self, ctx: &egui::Context) -> ButtonState {
+        let Some(until) = self.copy_feedback_until else {
+            return ButtonState::Normal;
+        };
+
+        let now = Instant::now();
+        if now >= until {
+            self.copy_feedback_until = None;
+            return ButtonState::Normal;
+        }
+
+        ctx.request_repaint_after(until - now);
+        ButtonState::Success
+    }
+
+    fn update_selected_color(&mut self, color: RgbaColor, source: &str, update_palette_base: bool) {
+        if let Some(record) = self.history.get_mut(self.selected) {
+            record.color = color;
+            record.source = source.to_owned();
+            record.x = None;
+            record.y = None;
+            record.monitor = None;
+        }
+
+        if update_palette_base {
+            self.palette_base = color;
+            self.palette_cursor = [0.5, 0.5];
+        }
+
+        self.status = format!("{source} color selected");
+    }
+
+    fn render_main(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        ui.painter()
+            .rect_filled(ui.max_rect(), 0.0, Color32::from_rgb(16, 19, 24));
+
+        egui::Frame::new()
+            .inner_margin(egui::Margin::same(OUTER_MARGIN))
+            .show(ui, |ui| {
+                ui.set_width(WORKSPACE_WIDTH);
+                ui.spacing_mut().item_spacing = egui::vec2(14.0, 10.0);
+                self.render_header(ui, frame);
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(12.0);
+                self.render_color_workspace(ui);
+            });
+    }
+
+    fn render_header(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        ui.horizontal(|ui| {
+            draw_logo_mark(ui, 42.0);
+            ui.heading(APP_TITLE).on_hover_text(self.status.as_str());
+
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let pick = icon_button(ui, ButtonIcon::Pick, "Pick", 104.0);
+                if pick.is_pointer_button_down_on() || pick.clicked() {
+                    self.start_pick(ui.ctx(), frame);
+                }
+            });
+        });
+    }
+
+    fn render_color_workspace(&mut self, ui: &mut egui::Ui) {
+        let color = self.selected_color();
+        ui.label(RichText::new("Selected Color").strong());
+        ui.add_space(4.0);
+        draw_swatch(
+            ui,
+            color,
+            self.alpha,
+            egui::vec2(ui.available_width().min(WORKSPACE_WIDTH), 64.0),
+        );
+
+        ui.add_space(8.0);
+        ui.columns(2, |columns| {
+            let alpha_changed = columns[0]
+                .add(egui::Slider::new(&mut self.alpha, 0.0..=1.0).text("Alpha"))
+                .changed();
+            columns[1].with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.add_sized(
+                    egui::vec2(220.0, 20.0),
+                    egui::Slider::new(&mut self.zoom, 5.0..=21.0).text("Zoom"),
+                );
+            });
+
+            if alpha_changed {
+                self.select_alpha_format_if_needed();
+            }
+        });
+
+        ui.add_space(10.0);
+        self.render_formats(ui);
+
+        ui.add_space(10.0);
+        ui.label(RichText::new("Related Palette").strong());
+        self.render_palette(ui);
+
+        ui.add_space(10.0);
+        ui.label(RichText::new("Alternatives").strong());
+        ui.horizontal_wrapped(|ui| {
+            for index in 0..12 {
+                let swatch = color::similar_swatch(color, index, 12);
+                let response = small_swatch(ui, swatch);
+                if response.clicked() {
+                    self.update_selected_color(swatch.with_alpha(self.alpha), "swatch", true);
+                }
+            }
+        });
+
+        ui.add_space(10.0);
+        self.render_history(ui);
+    }
+
+    fn render_palette(&mut self, ui: &mut egui::Ui) {
+        let base = self.palette_base;
+        let size = egui::vec2(ui.available_width().min(WORKSPACE_WIDTH), PALETTE_HEIGHT);
+        let (rect, response) = ui.allocate_exact_size(size, Sense::click_and_drag());
+        let cells_x = 36;
+        let cells_y = 18;
+        let painter = ui.painter();
+
+        for y in 0..cells_y {
+            for x in 0..cells_x {
+                let nx = x as f32 / (cells_x - 1) as f32;
+                let ny = y as f32 / (cells_y - 1) as f32;
+                let color = color::palette_color(base, nx, ny).with_alpha(self.alpha);
+                let cell = Rect::from_min_max(
+                    egui::pos2(
+                        rect.left() + rect.width() * x as f32 / cells_x as f32,
+                        rect.top() + rect.height() * y as f32 / cells_y as f32,
+                    ),
+                    egui::pos2(
+                        rect.left() + rect.width() * (x + 1) as f32 / cells_x as f32,
+                        rect.top() + rect.height() * (y + 1) as f32 / cells_y as f32,
+                    ),
+                );
+                painter.rect_filled(cell, 0.0, egui_color(color));
+            }
+        }
+
+        if response.clicked() || response.dragged() {
+            if let Some(pos) = response.interact_pointer_pos() {
+                let nx = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                let ny = ((pos.y - rect.top()) / rect.height()).clamp(0.0, 1.0);
+                self.palette_cursor = [nx, ny];
+                self.update_selected_color(
+                    color::palette_color(base, nx, ny).with_alpha(self.alpha),
+                    "palette",
+                    false,
+                );
+            }
+        }
+
+        let cursor = egui::pos2(
+            rect.left() + rect.width() * self.palette_cursor[0],
+            rect.top() + rect.height() * self.palette_cursor[1],
+        );
+        draw_crosshair(painter, cursor, Color32::WHITE, 11.0);
+    }
+
+    fn render_formats(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("Formats").strong());
+        let formats = self.selected_formats();
+        self.ensure_selected_format(&formats);
+
+        let row = formats
+            .iter()
+            .find(|row| row.label == self.selected_format)
+            .or_else(|| formats.first())
+            .cloned();
+
+        if let Some(row) = row {
+            let copy_button_state = self.copy_button_state(ui.ctx());
+            let copy_button_label = match copy_button_state {
+                ButtonState::Normal => "Copy",
+                ButtonState::Success => "Copied!",
+            };
+
+            ui.horizontal(|ui| {
+                ui.set_height(42.0);
+                self.render_format_dropdown(ui, &formats);
+                ui.add_sized(
+                    egui::vec2(92.0, 38.0),
+                    egui::Label::new(
+                        RichText::new(row.label)
+                            .monospace()
+                            .color(Color32::from_gray(170)),
+                    ),
+                );
+                let copy_width = 96.0;
+                let value_width = (ui.available_width() - copy_width - 12.0).max(130.0);
+                ui.add_sized(
+                    egui::vec2(value_width, 38.0),
+                    egui::Label::new(RichText::new(&row.value).monospace()).truncate(),
+                );
+                if icon_button_with_state(
+                    ui,
+                    ButtonIcon::Copy,
+                    copy_button_label,
+                    copy_width,
+                    copy_button_state,
+                )
+                .clicked()
+                {
+                    self.copy_text(ui.ctx(), &row.value);
+                }
+            });
+        }
+    }
+
+    fn ensure_selected_format(&mut self, formats: &[ColorFormat]) {
+        if !formats.iter().any(|row| row.label == self.selected_format) {
+            self.selected_format = DEFAULT_FORMAT.to_owned();
+        }
+    }
+
+    fn select_alpha_format_if_needed(&mut self) {
+        if let Some(format) = Self::closest_alpha_format(&self.selected_format) {
+            self.selected_format = format.to_owned();
+        }
+    }
+
+    fn closest_alpha_format(format: &str) -> Option<&'static str> {
+        match format {
+            "HEX" => Some("HEXA"),
+            "RGB" => Some("RGBA"),
+            "HSL" => Some("HSLA"),
+            _ => None,
+        }
+    }
+
+    fn render_format_dropdown(&mut self, ui: &mut egui::Ui, formats: &[ColorFormat]) {
+        let selected = self.selected_format.clone();
+        let width = Self::format_dropdown_width(formats);
+
+        ui.scope(|ui| {
+            let stroke = egui::Stroke::new(1.0, Color32::from_rgb(74, 84, 98));
+            let radius = egui::CornerRadius::same(6);
+
+            ui.spacing_mut().button_padding = egui::vec2(12.0, 10.0);
+            ui.spacing_mut().interact_size.y = 38.0;
+            ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::from_rgb(38, 44, 54);
+            ui.visuals_mut().widgets.hovered.weak_bg_fill = Color32::from_rgb(53, 61, 73);
+            ui.visuals_mut().widgets.active.weak_bg_fill = Color32::from_rgb(53, 61, 73);
+            ui.visuals_mut().widgets.open.weak_bg_fill = Color32::from_rgb(53, 61, 73);
+            ui.visuals_mut().widgets.inactive.bg_stroke = stroke;
+            ui.visuals_mut().widgets.hovered.bg_stroke = stroke;
+            ui.visuals_mut().widgets.active.bg_stroke = stroke;
+            ui.visuals_mut().widgets.open.bg_stroke = stroke;
+            ui.visuals_mut().widgets.inactive.corner_radius = radius;
+            ui.visuals_mut().widgets.hovered.corner_radius = radius;
+            ui.visuals_mut().widgets.active.corner_radius = radius;
+            ui.visuals_mut().widgets.open.corner_radius = radius;
+
+            egui::ComboBox::from_id_salt("format_selector")
+                .selected_text(selected)
+                .width(width)
+                .height(320.0)
+                .show_ui(ui, |ui| {
+                    for row in formats {
+                        ui.selectable_value(
+                            &mut self.selected_format,
+                            row.label.to_owned(),
+                            row.label,
+                        );
+                    }
+                });
+        });
+    }
+
+    fn format_dropdown_width(formats: &[ColorFormat]) -> f32 {
+        let longest = formats
+            .iter()
+            .map(|row| row.label.chars().count())
+            .max()
+            .unwrap_or(DEFAULT_FORMAT.len()) as f32;
+
+        (longest * 8.0 + 36.0).ceil().max(84.0)
+    }
+
+    fn render_history(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("History").strong());
+        ui.columns(2, |columns| {
+            self.render_history_column(&mut columns[0], 0);
+            self.render_history_column(&mut columns[1], HISTORY_COLUMN_LIMIT);
+        });
+    }
+
+    fn render_history_column(&mut self, ui: &mut egui::Ui, start: usize) {
+        ui.set_min_height(HISTORY_MAX_HEIGHT);
+        ui.spacing_mut().item_spacing.y = 4.0;
+
+        let end = self
+            .history
+            .len()
+            .min(start + HISTORY_COLUMN_LIMIT)
+            .min(HISTORY_VISIBLE_LIMIT);
+
+        for index in start..end {
+            self.render_history_item(ui, index);
+        }
+    }
+
+    fn render_history_item(&mut self, ui: &mut egui::Ui, index: usize) {
+        let record = self.history[index].clone();
+        ui.horizontal(|ui| {
+            draw_swatch(
+                ui,
+                record.color,
+                record.color.a as f32 / 255.0,
+                egui::vec2(28.0, 22.0),
+            );
+            let label = record.summary();
+            if ui.selectable_label(index == self.selected, label).clicked() {
+                self.selected = index;
+                self.alpha = record.color.a as f32 / 255.0;
+                self.palette_base = record.color;
+                self.palette_cursor = [0.5, 0.5];
+            }
+        });
+    }
+
+    fn render_overlay(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        let mut action = OverlayAction::None;
+        let zoom = self.zoom;
+        let picker_id = egui::ViewportId::from_hash_of(PICKER_VIEWPORT);
+
+        if let Some(overlay) = self.overlay.as_mut() {
+            let capture = &overlay.capture;
+            let builder = egui::ViewportBuilder::default()
+                .with_title(format!("{APP_TITLE} picker"))
+                .with_app_id("com.thevelasquez.v_color_picker.picker")
+                .with_position(egui::pos2(capture.origin_x as f32, capture.origin_y as f32))
+                .with_inner_size(egui::vec2(capture.width as f32, capture.height as f32))
+                .with_clamp_size_to_monitor_size(false)
+                .with_decorations(false)
+                .with_resizable(false)
+                .with_taskbar(false)
+                .with_always_on_top()
+                .with_active(true)
+                .with_icon(icon::app_icon());
+
+            ctx.show_viewport_immediate(picker_id, builder, |ui, _class| {
+                overlay.render(ui, zoom, &mut action)
+            });
+            self.show_main_window_behind_picker(ctx);
+        }
+
+        match action {
+            OverlayAction::None => {}
+            OverlayAction::Pick(sample) => {
+                self.overlay = None;
+                ctx.send_viewport_cmd_to(picker_id, egui::ViewportCommand::Close);
+                self.add_sample(sample);
+                self.restore_main_window(ctx, frame);
+            }
+            OverlayAction::Cancel => {
+                self.overlay = None;
+                ctx.send_viewport_cmd_to(picker_id, egui::ViewportCommand::Close);
+                self.status = "Picker cancelled".to_owned();
+                self.restore_main_window(ctx, frame);
+            }
+        }
+    }
+}
+
+impl eframe::App for VColorPickerApp {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        self.render_main(ui, frame);
+        self.render_overlay(ui.ctx(), frame);
+        self.apply_pending_main_focus(ui.ctx(), frame);
+    }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        history::save(storage, &self.history);
+    }
+
+    fn auto_save_interval(&self) -> Duration {
+        Duration::from_secs(5)
+    }
+}
