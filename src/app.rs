@@ -17,6 +17,7 @@ const PICKER_VIEWPORT: &str = "v_color_picker_picker_overlay";
 const DEFAULT_FORMAT: &str = "HEX";
 const OUTER_MARGIN: i8 = 24;
 const WORKSPACE_WIDTH: f32 = 520.0;
+const SLIDER_WIDTH: f32 = 220.0;
 const PALETTE_HEIGHT: f32 = 143.0;
 const HISTORY_COLUMN_LIMIT: usize = 5;
 const HISTORY_VISIBLE_LIMIT: usize = 10;
@@ -268,13 +269,17 @@ impl VColorPickerApp {
         );
 
         ui.add_space(8.0);
-        ui.columns(2, |columns| {
-            let alpha_changed = columns[0]
-                .add(egui::Slider::new(&mut self.alpha, 0.0..=1.0).text("Alpha"))
+        ui.horizontal(|ui| {
+            ui.set_height(24.0);
+            let alpha_changed = ui
+                .add_sized(
+                    egui::vec2(SLIDER_WIDTH, 20.0),
+                    egui::Slider::new(&mut self.alpha, 0.0..=1.0).text("Alpha"),
+                )
                 .changed();
-            columns[1].with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
                 ui.add_sized(
-                    egui::vec2(220.0, 20.0),
+                    egui::vec2(SLIDER_WIDTH, 20.0),
                     egui::Slider::new(&mut self.zoom, 5.0..=21.0).text("Zoom"),
                 );
             });

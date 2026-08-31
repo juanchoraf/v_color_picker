@@ -26,11 +26,10 @@ fn main() -> Result<()> {
             .with_app_id("com.thevelasquez.v_color_picker")
             .with_inner_size(window_size)
             .with_min_inner_size(window_size)
-            .with_max_inner_size(window_size)
-            .with_resizable(false)
+            .with_resizable(true)
             .with_icon(icon::app_icon()),
         centered: true,
-        persist_window: false,
+        persist_window: true,
         ..Default::default()
     };
 
