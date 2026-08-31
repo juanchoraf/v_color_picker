@@ -18,12 +18,17 @@ apt-get install -y \
   curl \
   desktop-file-utils \
   dpkg \
+  dpkg-dev \
   hicolor-icon-theme \
+  libbsd0 \
   libegl1-mesa-dev \
   libgl1-mesa-dev \
+  libmd0 \
   libpipewire-0.3-dev \
+  libxau6 \
   libxcb1 \
   libxcb1-dev \
+  libxdmcp6 \
   libxkbcommon-dev \
   libwayland-dev \
   pkg-config \

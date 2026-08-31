@@ -58,9 +58,12 @@ the current installation when a newer release is available.
 - Linux screen capture support depends on the active display server and desktop
   permissions. X11 and Wayland portal capture are supported by the vendored
   capture backend.
+- GitHub Linux release packages are built on a Debian Bullseye baseline to keep
+  the required `libc6` version broadly compatible. The `.deb` bundles the
+  safe runtime libraries used by the app, including `libgcc_s`, `libxcb`,
+  `libXau`, `libXdmcp`, `libbsd`, and `libmd`.
 - The Linux build intentionally avoids compile-time `pkg-config`,
-  PipeWire/SPA, EGL/GBM/DRM, and XCB development header requirements. X11
-  capture still needs the runtime `libxcb.so.1` library.
+  PipeWire/SPA, EGL/GBM/DRM, and XCB development header requirements.
 - macOS requires Screen Recording permission for desktop capture.
 - BSD/Unix-like capture depends on the active display server support exposed by
   the capture backend.

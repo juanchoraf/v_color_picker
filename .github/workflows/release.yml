@@ -19,9 +19,10 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build-linux:
     name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    container: rust:1-bullseye
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -29,12 +30,55 @@ jobs:
         include:
           - name: linux-x86_64
             runner: ubuntu-24.04
-            shell: bash
-            command: bash scripts/build_binaries_linux.sh --locked --no-update
           - name: linux-arm64
             runner: ubuntu-24.04-arm
-            shell: bash
-            command: bash scripts/build_binaries_linux.sh --locked --no-update
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2.9.2
+        with:
+          shared-key: release-${{ matrix.name }}
+
+      - name: Check tag matches Cargo version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | sed -n '1p')
+          tag_version="${RELEASE_TAG#v}"
+          if [ "$version" != "$tag_version" ]; then
+            echo "Cargo.toml version $version does not match release tag $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+      - name: Install Linux build dependencies
+        shell: bash
+        timeout-minutes: 15
+        run: bash scripts/install_linux_build_deps.sh
+
+      - name: Build artifacts on Linux
+        shell: bash
+        timeout-minutes: 45
+        run: bash scripts/build_binaries_linux.sh --locked --no-update
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: v_color_picker-${{ matrix.name }}
+          path: versions/v_color_picker_v*/v_color_picker_v*
+          if-no-files-found: error
+
+  build-native:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
           - name: macos-x86_64
             runner: macos-15-intel
             shell: bash
@@ -75,12 +119,6 @@ jobs:
             echo "Cargo.toml version $version does not match release tag $RELEASE_TAG" >&2
             exit 1
           fi
-
-      - name: Install Linux build dependencies
-        if: startsWith(matrix.runner, 'ubuntu-')
-        shell: bash
-        timeout-minutes: 15
-        run: sudo bash scripts/install_linux_build_deps.sh
 
       - name: Install Windows package tools
         if: matrix.shell == 'pwsh'
@@ -137,7 +175,9 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    needs: build
+    needs:
+      - build-linux
+      - build-native
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

@@ -11,8 +11,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BINARY="$ROOT_DIR/target/release/$APP"
 INSTALL_DIR="/opt/$APP"
-INSTALL_BIN="$INSTALL_DIR/$APP"
+INSTALL_BIN="$INSTALL_DIR/bin/$APP"
+INSTALL_LAUNCHER="$INSTALL_DIR/$APP"
+INSTALL_LIB_DIR="$INSTALL_DIR/lib"
 ICON_SRC="$SCRIPT_DIR/logo.svg"
+
+write_installed_launcher() {
+  install -Dm755 /dev/stdin "$INSTALL_LAUNCHER" <<'LAUNCHER'
+#!/usr/bin/env bash
+set -e
+
+APP_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+export LD_LIBRARY_PATH="$APP_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec "$APP_DIR/bin/v_color_picker" "$@"
+LAUNCHER
+}
 
 if [ ! -x "$BINARY" ]; then
   BINARY="$SCRIPT_DIR/$APP"
@@ -28,7 +41,19 @@ if [ ! -f "$ICON_SRC" ]; then
   ICON_SRC="$ROOT_DIR/assets/logo.svg"
 fi
 
-install -Dm755 "$BINARY" "$INSTALL_BIN"
+if [ -x "$SCRIPT_DIR/$APP" ] && [ -x "$SCRIPT_DIR/bin/$APP" ]; then
+  install -Dm755 "$SCRIPT_DIR/$APP" "$INSTALL_LAUNCHER"
+  install -Dm755 "$SCRIPT_DIR/bin/$APP" "$INSTALL_BIN"
+  if [ -d "$SCRIPT_DIR/lib" ]; then
+    rm -rf "$INSTALL_LIB_DIR"
+    mkdir -p "$INSTALL_LIB_DIR"
+    cp -a "$SCRIPT_DIR/lib/." "$INSTALL_LIB_DIR/"
+    find "$INSTALL_LIB_DIR" -type f -exec chmod 644 {} +
+  fi
+else
+  install -Dm755 "$BINARY" "$INSTALL_BIN"
+  write_installed_launcher
+fi
 if [ -f "$ICON_SRC" ]; then
   install -Dm644 "$ICON_SRC" "/usr/share/icons/hicolor/scalable/apps/$APP.svg"
 fi
@@ -37,7 +62,7 @@ install -Dm644 /dev/stdin "/usr/share/applications/com.thevelasquez.${APP}.deskt
 Type=Application
 Name=v_color_picker
 Comment=Pick and inspect exact screen colors
-Exec=$INSTALL_BIN
+Exec=$INSTALL_LAUNCHER
 Icon=$APP
 Terminal=false
 Categories=Graphics;Utility;
