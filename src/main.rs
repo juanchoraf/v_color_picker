@@ -28,6 +28,11 @@ fn main() -> Result<()> {
             .with_icon(icon::app_icon()),
         centered: true,
         persist_window: true,
+        renderer: eframe::Renderer::Glow,
+        glow_options: eframe::egui_glow::GlowConfiguration {
+            hardware_acceleration: eframe::egui_glow::HardwareAcceleration::Preferred,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
