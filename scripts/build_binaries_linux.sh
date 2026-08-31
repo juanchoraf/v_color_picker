@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 022
 
 APP="v_color_picker"
 PACKAGE="v-color-picker"
@@ -7,6 +8,14 @@ PUBLISHER="TheVelasquez.com"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPDATE_DEPS=1
 CARGO_LOCKED=""
+TMP_ROOT=""
+
+cleanup() {
+  if [ -n "$TMP_ROOT" ]; then
+    rm -rf "$TMP_ROOT"
+  fi
+}
+trap cleanup EXIT
 
 usage() {
   cat <<'USAGE'
@@ -62,12 +71,20 @@ case "$RAW_ARCH" in
     exit 1
     ;;
 esac
+case "$DEB_ARCH" in
+  amd64|arm64) ;;
+  *)
+    echo "Invalid Debian architecture mapping: $DEB_ARCH" >&2
+    exit 1
+    ;;
+esac
 
 OUT_DIR="$ROOT_DIR/versions/${APP}_v${VERSION}"
+TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${APP}_linux_package.XXXXXX")"
 ARTIFACT_ARCH="linux_${ARCH}"
-DEB_ROOT="$OUT_DIR/deb_root"
+DEB_ROOT="$TMP_ROOT/deb_root"
 APP_DIR="$DEB_ROOT/opt/$APP"
-TAR_STAGE="$OUT_DIR/linux_stage"
+TAR_STAGE="$TMP_ROOT/linux_stage"
 BIN_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.bin"
 DEB_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.deb"
 TAR_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.tar.gz"
@@ -80,6 +97,7 @@ cargo build --release $CARGO_LOCKED --manifest-path "$ROOT_DIR/Cargo.toml"
 
 cp "$ROOT_DIR/target/release/$APP" "$BIN_OUT"
 chmod 755 "$BIN_OUT"
+cp "$ROOT_DIR/assets/logo.svg" "$OUT_DIR/logo.svg"
 
 rm -rf "$DEB_ROOT"
 install -Dm755 "$ROOT_DIR/target/release/$APP" "$APP_DIR/$APP"
@@ -106,6 +124,7 @@ install -Dm644 /dev/stdin "$DEB_ROOT/usr/share/metainfo/com.thevelasquez.${APP}.
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
   <developer_name>$PUBLISHER</developer_name>
+  <icon type="stock">$APP</icon>
   <launchable type="desktop-id">com.thevelasquez.$APP.desktop</launchable>
   <releases>
     <release version="$VERSION"/>
@@ -144,6 +163,34 @@ fi
 POSTRM
 
 INSTALLED_SIZE="$(du -sk "$DEB_ROOT/opt" "$DEB_ROOT/usr" | awk '{total += $1} END {print total}')"
+DEB_DEPENDS="libc6, libxcb1"
+if command -v dpkg-shlibdeps >/dev/null 2>&1; then
+  SHLIBS_WORK="$TMP_ROOT/shlibdeps_work"
+  rm -rf "$SHLIBS_WORK"
+  mkdir -p "$SHLIBS_WORK/debian"
+  install -Dm644 /dev/stdin "$SHLIBS_WORK/debian/control" <<SHLIBS_CONTROL
+Source: $PACKAGE
+Section: graphics
+Priority: optional
+Maintainer: $PUBLISHER <support@thevelasquez.com>
+Standards-Version: 4.7.0
+
+Package: $PACKAGE
+Architecture: any
+Depends: \${shlibs:Depends}
+Description: Fast desktop color picker
+ Fast desktop color picker.
+SHLIBS_CONTROL
+  SHLIBS_LINE="$(cd "$SHLIBS_WORK" && dpkg-shlibdeps --ignore-missing-info -O "$APP_DIR/$APP" 2>/dev/null || true)"
+  rm -rf "$SHLIBS_WORK"
+  if [ -n "$SHLIBS_LINE" ] && [ "${SHLIBS_LINE#shlibs:Depends=}" != "$SHLIBS_LINE" ]; then
+    DEB_DEPENDS="${SHLIBS_LINE#shlibs:Depends=}"
+    case ", $DEB_DEPENDS, " in
+      *", libxcb1"*) ;;
+      *) DEB_DEPENDS="$DEB_DEPENDS, libxcb1" ;;
+    esac
+  fi
+fi
 install -Dm644 /dev/stdin "$DEB_ROOT/DEBIAN/control" <<CONTROL
 Package: $PACKAGE
 Version: $VERSION
@@ -152,12 +199,16 @@ Priority: optional
 Architecture: $DEB_ARCH
 Maintainer: $PUBLISHER <support@thevelasquez.com>
 Installed-Size: $INSTALLED_SIZE
-Depends: libc6, libxcb1
+Depends: $DEB_DEPENDS
 Homepage: https://thevelasquez.com
 Description: Fast desktop color picker
  Pick exact colors from every attached monitor and copy HEX, RGB, RGBA,
  HSL, HWB, LCH, OKLCH, LAB, OKLAB, SRGB, and related formats.
 CONTROL
+
+chmod 755 "$DEB_ROOT" "$DEB_ROOT/DEBIAN"
+chmod 644 "$DEB_ROOT/DEBIAN/control"
+chmod 755 "$DEB_ROOT/DEBIAN/postinst" "$DEB_ROOT/DEBIAN/postrm"
 
 if command -v dpkg-deb >/dev/null 2>&1; then
   dpkg-deb --build --root-owner-group "$DEB_ROOT" "$DEB_OUT"
