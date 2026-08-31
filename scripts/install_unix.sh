@@ -2,7 +2,8 @@
 set -euo pipefail
 
 APP="v_color_picker"
-INSTALL_BIN="/usr/local/bin/$APP"
+INSTALL_DIR="/opt/$APP"
+INSTALL_BIN="$INSTALL_DIR/$APP"
 ICON_DIR="/usr/local/share/icons/hicolor/scalable/apps"
 DESKTOP_DIR="/usr/local/share/applications"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,7 +31,7 @@ fi
 install -Dm644 /dev/stdin "$DESKTOP_DIR/com.thevelasquez.${APP}.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=V_Color_Picker
+Name=v_color_picker
 Comment=Pick and inspect exact screen colors
 Exec=$INSTALL_BIN
 Icon=$APP

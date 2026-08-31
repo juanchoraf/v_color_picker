@@ -12,7 +12,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/build_binaries_linux.sh [--locked] [--no-update]
 
-Builds Linux 64-bit V_Color_Picker artifacts for the current machine.
+Builds Linux 64-bit v_color_picker artifacts for the current machine.
 
 Options:
   --locked     Use Cargo.lock exactly as-is
@@ -66,6 +66,8 @@ esac
 OUT_DIR="$ROOT_DIR/versions/${APP}_v${VERSION}"
 ARTIFACT_ARCH="linux_${ARCH}"
 DEB_ROOT="$OUT_DIR/deb_root"
+APP_DIR="$DEB_ROOT/opt/$APP"
+TAR_STAGE="$OUT_DIR/linux_stage"
 BIN_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.bin"
 DEB_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.deb"
 TAR_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.tar.gz"
@@ -80,15 +82,15 @@ cp "$ROOT_DIR/target/release/$APP" "$BIN_OUT"
 chmod 755 "$BIN_OUT"
 
 rm -rf "$DEB_ROOT"
-install -Dm755 "$ROOT_DIR/target/release/$APP" "$DEB_ROOT/usr/bin/$APP"
+install -Dm755 "$ROOT_DIR/target/release/$APP" "$APP_DIR/$APP"
 install -Dm644 "$ROOT_DIR/assets/logo.svg" "$DEB_ROOT/usr/share/icons/hicolor/scalable/apps/$APP.svg"
 
 install -Dm644 /dev/stdin "$DEB_ROOT/usr/share/applications/com.thevelasquez.${APP}.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=V_Color_Picker
+Name=v_color_picker
 Comment=Pick and inspect exact screen colors
-Exec=/usr/bin/$APP
+Exec=/opt/$APP/$APP
 Icon=$APP
 Terminal=false
 Categories=Graphics;Utility;
@@ -99,15 +101,12 @@ install -Dm644 /dev/stdin "$DEB_ROOT/usr/share/metainfo/com.thevelasquez.${APP}.
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>com.thevelasquez.$APP</id>
-  <name>V_Color_Picker</name>
+  <name>v_color_picker</name>
   <summary>Pick exact screen colors and copy them in many formats</summary>
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
   <developer_name>$PUBLISHER</developer_name>
   <launchable type="desktop-id">com.thevelasquez.$APP.desktop</launchable>
-  <provides>
-    <binary>$APP</binary>
-  </provides>
   <releases>
     <release version="$VERSION"/>
   </releases>
@@ -129,6 +128,7 @@ install -Dm755 /dev/stdin "$DEB_ROOT/DEBIAN/postrm" <<'POSTRM'
 #!/usr/bin/env bash
 set -e
 if [ "$1" = "purge" ] || [ "$1" = "remove" ]; then
+  rm -rf /opt/v_color_picker
   rm -rf /var/cache/v_color_picker /var/lib/v_color_picker
   rm -rf /root/.config/v_color_picker /root/.local/share/v_color_picker /root/.cache/v_color_picker
   if [ -d /home ]; then
@@ -143,7 +143,7 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
 fi
 POSTRM
 
-INSTALLED_SIZE="$(du -sk "$DEB_ROOT/usr" | awk '{print $1}')"
+INSTALLED_SIZE="$(du -sk "$DEB_ROOT/opt" "$DEB_ROOT/usr" | awk '{total += $1} END {print total}')"
 install -Dm644 /dev/stdin "$DEB_ROOT/DEBIAN/control" <<CONTROL
 Package: $PACKAGE
 Version: $VERSION
@@ -165,7 +165,11 @@ else
   echo "dpkg-deb not found; skipped .deb packaging" >&2
 fi
 
-tar -czf "$TAR_OUT" -C "$OUT_DIR" "$(basename "$BIN_OUT")"
+rm -rf "$TAR_STAGE"
+mkdir -p "$TAR_STAGE"
+cp "$ROOT_DIR/target/release/$APP" "$TAR_STAGE/$APP"
+cp "$ROOT_DIR/assets/logo.svg" "$TAR_STAGE/logo.svg"
+tar -czf "$TAR_OUT" -C "$TAR_STAGE" "$APP" "logo.svg"
 cp "$ROOT_DIR/scripts/install_linux.sh" "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_install.sh"
 cp "$ROOT_DIR/scripts/uninstall_linux.sh" "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_uninstall.sh"
 chmod 755 "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_install.sh"

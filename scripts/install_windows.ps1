@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $App = "v_color_picker"
-$DisplayName = "V_Color_Picker"
+$DisplayName = "v_color_picker"
 $Publisher = "TheVelasquez.com"
 $InstallDir = Join-Path $env:ProgramFiles $App
 $Version = "0.1.0"
@@ -36,25 +36,12 @@ if (Test-Path (Join-Path $ScriptDir "logo.svg")) {
   Copy-Item (Join-Path $ScriptDir "logo.svg") (Join-Path $InstallDir "logo.svg") -Force
 }
 
-Set-Content -Path (Join-Path $InstallDir "$App.ps1") -Encoding UTF8 -Value @"
-& "`$PSScriptRoot\$App.exe" @args
-"@
-
-$MachinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-if ((";{0};" -f $MachinePath).ToLowerInvariant().IndexOf((";{0};" -f $InstallDir).ToLowerInvariant()) -lt 0) {
-  if ([string]::IsNullOrWhiteSpace($MachinePath)) {
-    [Environment]::SetEnvironmentVariable("Path", $InstallDir, "Machine")
-  } else {
-    [Environment]::SetEnvironmentVariable("Path", "$MachinePath;$InstallDir", "Machine")
-  }
-}
-
 $Programs = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\$DisplayName"
 New-Item -ItemType Directory -Force -Path $Programs | Out-Null
 $Shell = New-Object -ComObject WScript.Shell
 $Shortcut = $Shell.CreateShortcut((Join-Path $Programs "$DisplayName.lnk"))
-$Shortcut.TargetPath = "powershell.exe"
-$Shortcut.Arguments = "-NoExit -ExecutionPolicy Bypass -File `"$InstallDir\$App.ps1`""
+$Shortcut.TargetPath = Join-Path $InstallDir "$App.exe"
+$Shortcut.Arguments = ""
 $Shortcut.WorkingDirectory = $InstallDir
 $Shortcut.Save()
 

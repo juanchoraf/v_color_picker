@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $App = "v_color_picker"
-$DisplayName = "V_Color_Picker"
+$DisplayName = "v_color_picker"
 $InstallDir = Join-Path $env:ProgramFiles $App
 
 function Test-Admin {

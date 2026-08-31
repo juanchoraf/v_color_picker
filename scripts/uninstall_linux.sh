@@ -7,6 +7,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 APP="v_color_picker"
+rm -rf "/opt/$APP"
 rm -f "/usr/local/bin/$APP" "/usr/bin/$APP"
 rm -f "/usr/local/share/applications/com.thevelasquez.${APP}.desktop"
 rm -f "/usr/share/applications/com.thevelasquez.${APP}.desktop"

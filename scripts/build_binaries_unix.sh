@@ -10,7 +10,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/build_binaries_unix.sh [--locked] [--no-update]
 
-Builds Unix-like 64-bit V_Color_Picker artifacts for the current machine.
+Builds Unix-like 64-bit v_color_picker artifacts for the current machine.
 
 Options:
   --locked     Use Cargo.lock exactly as-is

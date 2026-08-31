@@ -11,7 +11,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/build_binaries_macos.sh [--locked] [--no-update]
 
-Builds macOS 64-bit V_Color_Picker artifacts for the current Mac.
+Builds macOS 64-bit v_color_picker artifacts for the current Mac.
 
 Options:
   --locked     Use Cargo.lock exactly as-is
@@ -83,24 +83,23 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleDisplayName</key><string>V_Color_Picker</string>
+  <key>CFBundleDisplayName</key><string>v_color_picker</string>
   <key>CFBundleExecutable</key><string>$APP</string>
   <key>CFBundleIdentifier</key><string>com.thevelasquez.$APP</string>
-  <key>CFBundleName</key><string>V_Color_Picker</string>
+  <key>CFBundleName</key><string>v_color_picker</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
   <key>LSMinimumSystemVersion</key><string>10.15</string>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSScreenCaptureDescription</key><string>V_Color_Picker captures screens to let you pick exact colors.</string>
+  <key>NSScreenCaptureDescription</key><string>v_color_picker captures screens to let you pick exact colors.</string>
 </dict>
 </plist>
 PLIST
 
 tar -czf "$TAR_OUT" -C "$OUT_DIR" "${APP}.app"
 
-mkdir -p "$PKG_ROOT/Applications" "$PKG_ROOT/usr/local/bin"
+mkdir -p "$PKG_ROOT/Applications"
 cp -R "$APP_BUNDLE" "$PKG_ROOT/Applications/"
-ln -s "/Applications/${APP}.app/Contents/MacOS/$APP" "$PKG_ROOT/usr/local/bin/$APP"
 
 if command -v pkgbuild >/dev/null 2>&1; then
   pkgbuild \

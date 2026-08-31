@@ -20,6 +20,5 @@ fi
 
 rm -rf "/Applications/${APP}.app"
 cp -R "$APP_BUNDLE" "/Applications/${APP}.app"
-ln -sf "/Applications/${APP}.app/Contents/MacOS/$APP" "/usr/local/bin/$APP"
 
 echo "Installed $APP for all users."

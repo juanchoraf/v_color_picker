@@ -8,6 +8,7 @@ if [ "${EUID:-$(id -u)}" -ne 0 ]; then
   exit 1
 fi
 
+rm -rf "/opt/$APP"
 rm -f "/usr/local/bin/$APP"
 rm -f "/usr/local/share/applications/com.thevelasquez.${APP}.desktop"
 rm -f "/usr/local/share/icons/hicolor/scalable/apps/$APP.svg"

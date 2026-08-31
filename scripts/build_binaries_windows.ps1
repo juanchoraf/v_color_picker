@@ -14,7 +14,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $App = "v_color_picker"
-$DisplayName = "V_Color_Picker"
+$DisplayName = "v_color_picker"
 $Publisher = "TheVelasquez.com"
 $RootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Manifest = Join-Path $RootDir "Cargo.toml"
@@ -32,7 +32,7 @@ $ArtifactArch = "windows_$Arch"
 $ExeAsset = Join-Path $OutDir "$($App)_v$($Version)_$ArtifactArch.exe"
 $MsiAsset = Join-Path $OutDir "$($App)_v$($Version)_$ArtifactArch.msi"
 $CertDir = Join-Path $RootDir "certs"
-$CertSubject = "CN=TheVelasquez.com V_Color_Picker Code Signing"
+$CertSubject = "CN=TheVelasquez.com v_color_picker Code Signing"
 $CertPassword = "TheVelasquez.com-v_color_picker-local"
 $PfxPath = Join-Path $CertDir "v_color_picker_codesign.pfx"
 $CerPath = Join-Path $CertDir "v_color_picker_codesign.cer"
@@ -135,9 +135,6 @@ if ($LASTEXITCODE -ne 0) {
 Copy-Item (Join-Path $RootDir "target\release\$App.exe") (Join-Path $Stage "$App.exe") -Force
 Copy-Item (Join-Path $RootDir "assets\logo.svg") (Join-Path $Stage "logo.svg") -Force
 Copy-Item (Join-Path $RootDir "assets\logo.svg") (Join-Path $OutDir "logo.svg") -Force
-Set-Content -Path (Join-Path $Stage "$App.ps1") -Encoding UTF8 -Value @"
-& "`$PSScriptRoot\$App.exe" @args
-"@
 
 $SigningPfxPath = $CodeSigningCertPath
 $SigningPassword = $CodeSigningCertPassword
@@ -197,16 +194,14 @@ if ($Wix) {
       <Directory Id="INSTALLFOLDER" Name="v_color_picker">
         <Component Id="MainExecutable" Guid="a3d6d137-7d36-4d77-a164-4f72b5c67266">
           <File Source="$Stage\$App.exe" KeyPath="yes" />
-          <File Source="$Stage\$App.ps1" />
           <File Source="$Stage\logo.svg" />
-          <Environment Id="PathEntry" Name="PATH" Value="[INSTALLFOLDER]" Permanent="no" Part="last" Action="set" System="yes" />
         </Component>
       </Directory>
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="AppProgramMenuFolder" Name="$DisplayName">
         <Component Id="StartMenuShortcut" Guid="55df50a0-1331-4f0c-a29e-a4b377a03123">
-          <Shortcut Id="StartMenuShortcutLink" Name="$DisplayName" Target="[System64Folder]WindowsPowerShell\v1.0\powershell.exe" Arguments="-NoExit -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]$App.ps1&quot;" WorkingDirectory="INSTALLFOLDER" />
+          <Shortcut Id="StartMenuShortcutLink" Name="$DisplayName" Target="[INSTALLFOLDER]$App.exe" WorkingDirectory="INSTALLFOLDER" />
           <RemoveFolder Id="RemoveAppProgramMenuFolder" On="uninstall" />
           <RegistryValue Root="HKLM" Key="Software\TheVelasquez.com\v_color_picker" Name="installed" Type="integer" Value="1" KeyPath="yes" />
         </Component>
@@ -251,29 +246,14 @@ SolidCompression=yes
 
 [Files]
 Source: "$Stage\$App.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "$Stage\$App.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "$Stage\logo.svg"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\$DisplayName"; Filename: "powershell.exe"; Parameters: "-NoExit -ExecutionPolicy Bypass -File ""{app}\$App.ps1"""; WorkingDir: "{app}"
-Name: "{autodesktop}\$DisplayName"; Filename: "powershell.exe"; Parameters: "-NoExit -ExecutionPolicy Bypass -File ""{app}\$App.ps1"""; WorkingDir: "{app}"
-
-[Registry]
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: NeedsAddPath(ExpandConstant('{app}'))
+Name: "{group}\$DisplayName"; Filename: "{app}\$App.exe"; WorkingDir: "{app}"
+Name: "{autodesktop}\$DisplayName"; Filename: "{app}\$App.exe"; WorkingDir: "{app}"
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoExit -ExecutionPolicy Bypass -File ""{app}\$App.ps1"""; Description: "Open $DisplayName"; Flags: postinstall skipifsilent nowait
-
-[Code]
-function NeedsAddPath(Path: string): Boolean;
-var
-  OldPath: string;
-begin
-  if not RegQueryStringValue(HKLM, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'Path', OldPath) then
-    Result := True
-  else
-    Result := Pos(';' + Uppercase(Path) + ';', ';' + Uppercase(OldPath) + ';') = 0;
-end;
+Filename: "{app}\$App.exe"; Description: "Open $DisplayName"; Flags: postinstall skipifsilent nowait
 "@
   & $Iscc $Iss
   if ($LASTEXITCODE -ne 0) {
