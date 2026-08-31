@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP="v_color_picker"
+PUBLISHER="TheVelasquez.com"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+UPDATE_DEPS=1
+CARGO_LOCKED=""
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/build_binaries_macos.sh [--locked] [--no-update]
+
+Builds macOS 64-bit V_Color_Picker artifacts for the current Mac.
+
+Options:
+  --locked     Use Cargo.lock exactly as-is
+  --no-update  Do not run cargo update before building
+  -h, --help   Show this help
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --locked)
+      UPDATE_DEPS=0
+      CARGO_LOCKED="--locked"
+      shift
+      ;;
+    --no-update)
+      UPDATE_DEPS=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+cd "$ROOT_DIR"
+VERSION="$(awk -F'"' '/^version = / { print $2; exit }' "$ROOT_DIR/Cargo.toml")"
+RAW_ARCH="$(uname -m)"
+
+case "$RAW_ARCH" in
+  x86_64)
+    ARCH="x86_64"
+    ;;
+  arm64|aarch64)
+    ARCH="arm64"
+    ;;
+  *)
+    echo "Only 64-bit builds are supported. Found: $RAW_ARCH" >&2
+    exit 1
+    ;;
+esac
+
+OUT_DIR="$ROOT_DIR/versions/${APP}_v${VERSION}"
+ARTIFACT_ARCH="macos_${ARCH}"
+APP_BUNDLE="$OUT_DIR/${APP}.app"
+PKG_ROOT="$OUT_DIR/pkg_root"
+TAR_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.tar.gz"
+PKG_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.pkg"
+
+mkdir -p "$OUT_DIR"
+if [ "$UPDATE_DEPS" -eq 1 ]; then
+  cargo update
+fi
+cargo build --release $CARGO_LOCKED --manifest-path "$ROOT_DIR/Cargo.toml"
+
+rm -rf "$APP_BUNDLE" "$PKG_ROOT"
+install -Dm755 "$ROOT_DIR/target/release/$APP" "$APP_BUNDLE/Contents/MacOS/$APP"
+install -Dm644 "$ROOT_DIR/assets/logo.svg" "$APP_BUNDLE/Contents/Resources/logo.svg"
+
+cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key><string>V_Color_Picker</string>
+  <key>CFBundleExecutable</key><string>$APP</string>
+  <key>CFBundleIdentifier</key><string>com.thevelasquez.$APP</string>
+  <key>CFBundleName</key><string>V_Color_Picker</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>CFBundleVersion</key><string>$VERSION</string>
+  <key>LSMinimumSystemVersion</key><string>10.15</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSScreenCaptureDescription</key><string>V_Color_Picker captures screens to let you pick exact colors.</string>
+</dict>
+</plist>
+PLIST
+
+tar -czf "$TAR_OUT" -C "$OUT_DIR" "${APP}.app"
+
+mkdir -p "$PKG_ROOT/Applications" "$PKG_ROOT/usr/local/bin"
+cp -R "$APP_BUNDLE" "$PKG_ROOT/Applications/"
+ln -s "/Applications/${APP}.app/Contents/MacOS/$APP" "$PKG_ROOT/usr/local/bin/$APP"
+
+if command -v pkgbuild >/dev/null 2>&1; then
+  pkgbuild \
+    --root "$PKG_ROOT" \
+    --identifier "com.thevelasquez.$APP" \
+    --version "$VERSION" \
+    --install-location "/" \
+    --ownership recommended \
+    "$PKG_OUT"
+else
+  echo "pkgbuild not found; skipped .pkg packaging" >&2
+fi
+
+cp "$ROOT_DIR/scripts/install_macos.sh" "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_install.sh"
+cp "$ROOT_DIR/scripts/uninstall_macos.sh" "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_uninstall.sh"
+chmod 755 "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_install.sh"
+chmod 755 "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_uninstall.sh"
+
+echo "Release files written to $OUT_DIR"

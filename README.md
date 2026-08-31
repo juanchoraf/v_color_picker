@@ -64,6 +64,28 @@ You can set `V_COLOR_PICKER_GITHUB_REPO=owner/repo` instead of passing
 ## Build Release Packages
 
 The project is Rust 2024 and uses the current stable toolchain.
+Release scripts accept `--locked` to use `Cargo.lock` exactly as-is and
+`--no-update` to skip `cargo update`.
+
+### GitHub Release Builds
+
+GitHub Actions builds release packages automatically when you push a matching
+`v*` tag. The tag version must match the version in `Cargo.toml`.
+
+```sh
+scripts/bump_version.sh 0.1.1 --no-build
+git add Cargo.toml Cargo.lock
+git commit -m "Release v0.1.1"
+git tag v0.1.1
+git push origin main v0.1.1
+```
+
+That release workflow builds Linux x86_64, Linux arm64, macOS x86_64,
+macOS arm64, and Windows x86_64, then publishes the artifacts to the GitHub
+Release. You can also run `.github/workflows/release.yml` manually from GitHub
+Actions by passing a tag such as `v0.1.1`.
+
+### Local Release Builds
 
 Linux:
 
@@ -76,9 +98,9 @@ packaging tools and the XCB runtime library if your machine is missing them.
 
 Outputs are written to `versions/v_color_picker_vVERSION/`:
 
-- `v_color_picker_vVERSION_x86_64.bin` or `v_color_picker_vVERSION_arm64.bin`
-- `v_color_picker_vVERSION_x86_64.deb` or `v_color_picker_vVERSION_arm64.deb`
-- `v_color_picker_vVERSION_x86_64.tar.gz` or `v_color_picker_vVERSION_arm64.tar.gz`
+- `v_color_picker_vVERSION_linux_x86_64.bin` or `v_color_picker_vVERSION_linux_arm64.bin`
+- `v_color_picker_vVERSION_linux_x86_64.deb` or `v_color_picker_vVERSION_linux_arm64.deb`
+- `v_color_picker_vVERSION_linux_x86_64.tar.gz` or `v_color_picker_vVERSION_linux_arm64.tar.gz`
 - install and uninstall helper scripts
 
 macOS:
@@ -89,8 +111,8 @@ scripts/build_binaries.sh
 
 Outputs include:
 
-- `v_color_picker_vVERSION_x86_64.tar.gz` or `v_color_picker_vVERSION_arm64.tar.gz`
-- `v_color_picker_vVERSION_x86_64.pkg` or `v_color_picker_vVERSION_arm64.pkg`
+- `v_color_picker_vVERSION_macos_x86_64.tar.gz` or `v_color_picker_vVERSION_macos_arm64.tar.gz`
+- `v_color_picker_vVERSION_macos_x86_64.pkg` or `v_color_picker_vVERSION_macos_arm64.pkg`
 - install and uninstall helper scripts
 
 BSD/Unix-like:
@@ -101,8 +123,8 @@ scripts/build_binaries.sh
 
 Outputs include:
 
-- `v_color_picker_vVERSION_x86_64.bin` or `v_color_picker_vVERSION_arm64.bin`
-- `v_color_picker_vVERSION_x86_64.tar.gz` or `v_color_picker_vVERSION_arm64.tar.gz`
+- `v_color_picker_vVERSION_unix_x86_64.bin` or `v_color_picker_vVERSION_unix_arm64.bin`
+- `v_color_picker_vVERSION_unix_x86_64.tar.gz` or `v_color_picker_vVERSION_unix_arm64.tar.gz`
 - install and uninstall helper scripts
 
 Windows PowerShell:
@@ -113,8 +135,8 @@ Windows PowerShell:
 
 Outputs include:
 
-- `v_color_picker_vVERSION_x86_64.exe`
-- `v_color_picker_vVERSION_x86_64.msi` when WiX `wix.exe` is installed
+- `v_color_picker_vVERSION_windows_x86_64.exe`
+- `v_color_picker_vVERSION_windows_x86_64.msi` when WiX `wix.exe` is installed
 - install and uninstall helper scripts
 - a local self-signed code-signing certificate under `certs/`
 
@@ -134,7 +156,7 @@ scripts/bump_version.sh 0.1.1
 Debian/Ubuntu:
 
 ```sh
-sudo apt install ./versions/v_color_picker_vVERSION/v_color_picker_vVERSION_x86_64.deb
+sudo apt install ./versions/v_color_picker_vVERSION/v_color_picker_vVERSION_linux_x86_64.deb
 ```
 
 The `.deb` installs `/usr/bin/v_color_picker`, a desktop launcher, an SVG icon,
@@ -143,32 +165,32 @@ and AppStream metadata so graphical software managers can show an Open button.
 Linux helper install:
 
 ```sh
-sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_x86_64_install.sh
+sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_linux_x86_64_install.sh
 ```
 
 macOS package:
 
 ```sh
-sudo installer -pkg versions/v_color_picker_vVERSION/v_color_picker_vVERSION_arm64.pkg -target /
+sudo installer -pkg versions/v_color_picker_vVERSION/v_color_picker_vVERSION_macos_arm64.pkg -target /
 ```
 
 macOS helper install:
 
 ```sh
-sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_arm64_install.sh
+sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_macos_arm64_install.sh
 ```
 
 BSD/Unix-like helper install:
 
 ```sh
-sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_x86_64_install.sh
+sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_unix_x86_64_install.sh
 ```
 
 Windows:
 
 ```powershell
-.\versions\v_color_picker_vVERSION\v_color_picker_vVERSION_x86_64.exe
-msiexec /i .\versions\v_color_picker_vVERSION\v_color_picker_vVERSION_x86_64.msi
+.\versions\v_color_picker_vVERSION\v_color_picker_vVERSION_windows_x86_64.exe
+msiexec /i .\versions\v_color_picker_vVERSION\v_color_picker_vVERSION_windows_x86_64.msi
 ```
 
 Both Windows installer paths install for all users, add the app directory to
@@ -179,25 +201,25 @@ PATH, and create Start Menu launchers that run through PowerShell.
 Linux:
 
 ```sh
-sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_x86_64_uninstall.sh
+sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_linux_x86_64_uninstall.sh
 ```
 
 macOS:
 
 ```sh
-sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_arm64_uninstall.sh
+sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_macos_arm64_uninstall.sh
 ```
 
 BSD/Unix-like:
 
 ```sh
-sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_x86_64_uninstall.sh
+sudo versions/v_color_picker_vVERSION/v_color_picker_vVERSION_unix_x86_64_uninstall.sh
 ```
 
 Windows:
 
 ```powershell
-.\versions\v_color_picker_vVERSION\v_color_picker_vVERSION_x86_64_uninstall.ps1
+.\versions\v_color_picker_vVERSION\v_color_picker_vVERSION_windows_x86_64_uninstall.ps1
 ```
 
 The uninstall scripts remove the app binary, launchers, metadata, and known app
