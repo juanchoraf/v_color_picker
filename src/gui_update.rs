@@ -45,7 +45,7 @@ impl GuiUpdate {
         let version_label = format!("v{}", update::current_version());
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
+            ui.spacing_mut().item_spacing.x = 14.0;
 
             let update_response = ui
                 .add_enabled_ui(!busy, |ui| text_button(ui, "Update", control_size))
@@ -55,12 +55,7 @@ impl GuiUpdate {
                 self.start_update(status);
             }
 
-            if text_button(ui, &version_label, control_size)
-                .on_hover_text("Version")
-                .clicked()
-            {
-                *status = format!("Version {}", update::current_version());
-            }
+            ui.label(RichText::new(version_label).color(ui.visuals().weak_text_color()));
         });
 
         self.render_modal(ui.ctx());
