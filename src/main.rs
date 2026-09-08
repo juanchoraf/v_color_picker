@@ -16,7 +16,7 @@ use anyhow::Result;
 use eframe::egui;
 
 const APP_WINDOW_WIDTH: f32 = 568.0;
-const APP_WINDOW_HEIGHT: f32 = 860.0;
+const APP_WINDOW_HEIGHT: f32 = 920.0;
 
 fn main() -> Result<()> {
     let window_size = egui::vec2(APP_WINDOW_WIDTH, APP_WINDOW_HEIGHT);

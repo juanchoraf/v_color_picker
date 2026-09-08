@@ -1,7 +1,7 @@
 use eframe::egui::{self, Color32, Rect, Sense};
 
 use crate::color::{self, RgbaColor};
-use crate::drawing::{draw_crosshair, egui_color};
+use crate::drawing::{ButtonIcon, ButtonState, draw_crosshair, egui_color, icon_button_with_state};
 
 pub const HEIGHT: f32 = 143.0;
 
@@ -9,6 +9,7 @@ const RELATED_CELLS_X: usize = 36;
 const RELATED_CELLS_Y: usize = 18;
 const DEFAULT_CELLS_X: usize = 72;
 const DEFAULT_CELLS_Y: usize = 24;
+const TAB_WIDTH: f32 = 168.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PaletteTab {
@@ -81,9 +82,39 @@ pub fn render(
 
 fn render_tabs(ui: &mut egui::Ui, active: &mut PaletteTab) {
     ui.horizontal(|ui| {
-        ui.selectable_value(active, PaletteTab::Related, "Related Palette");
-        ui.selectable_value(active, PaletteTab::Default, "Default Palette");
+        render_tab(
+            ui,
+            active,
+            PaletteTab::Related,
+            ButtonIcon::RelatedPalette,
+            "Related Palette",
+        );
+        render_tab(
+            ui,
+            active,
+            PaletteTab::Default,
+            ButtonIcon::DefaultPalette,
+            "Default Palette",
+        );
     });
+}
+
+fn render_tab(
+    ui: &mut egui::Ui,
+    active: &mut PaletteTab,
+    tab: PaletteTab,
+    icon: ButtonIcon,
+    label: &'static str,
+) {
+    let state = if *active == tab {
+        ButtonState::Active
+    } else {
+        ButtonState::Normal
+    };
+
+    if icon_button_with_state(ui, icon, label, TAB_WIDTH, state).clicked() {
+        *active = tab;
+    }
 }
 
 fn render_surface(

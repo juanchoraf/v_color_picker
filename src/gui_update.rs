@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use eframe::egui::{self, Align, Color32, Layout, RichText};
 
-use crate::drawing::text_button;
+use crate::drawing::{ButtonIcon, icon_button, text_button};
 use crate::update::{self, UpdateOutcome};
 
 const CONTROL_WIDTH: f32 = 96.0;
@@ -47,14 +47,15 @@ impl GuiUpdate {
     pub fn render(&mut self, ui: &mut egui::Ui, status: &mut String) {
         self.poll(status);
         let busy = self.pending.is_some();
-        let control_size = egui::vec2(CONTROL_WIDTH, CONTROL_HEIGHT);
         let version_label = format!("v{}", update::current_version());
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 14.0;
 
             let update_response = ui
-                .add_enabled_ui(!busy, |ui| text_button(ui, "Update", control_size))
+                .add_enabled_ui(!busy, |ui| {
+                    icon_button(ui, ButtonIcon::Update, "Update", CONTROL_WIDTH)
+                })
                 .inner
                 .on_hover_text("Check for updates and install if available");
             if update_response.clicked() {

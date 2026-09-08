@@ -42,12 +42,16 @@ pub fn small_swatch(ui: &mut egui::Ui, color: RgbaColor) -> egui::Response {
 #[derive(Clone, Copy, Debug)]
 pub enum ButtonIcon {
     Copy,
+    DefaultPalette,
     Pick,
+    RelatedPalette,
     Trash,
+    Update,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ButtonState {
+    Active,
     Normal,
     Success,
 }
@@ -68,27 +72,35 @@ pub fn icon_button_with_state(
     min_width: f32,
     state: ButtonState,
 ) -> egui::Response {
+    let enabled = ui.is_enabled();
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
     let height = 38.0;
     let width = min_width.max(92.0);
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, height), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, height), sense);
 
     if ui.is_rect_visible(rect) {
         let visuals = ui.style().interact(&response);
         let accent = Color32::from_rgb(0x3F, 0xB3, 0xD8);
         let success = Color32::from_rgb(0x22, 0xAB, 0x94);
-        let content_color = match icon {
-            ButtonIcon::Copy => visuals.text_color(),
-            ButtonIcon::Pick => accent,
-            ButtonIcon::Trash => visuals.text_color(),
+        let muted = Color32::from_gray(105);
+        let content_color = match (enabled, icon) {
+            (false, _) => muted,
+            (true, ButtonIcon::Pick) => accent,
+            _ => visuals.text_color(),
         };
-        let border_color = match icon {
-            ButtonIcon::Copy => Color32::from_rgb(74, 84, 98),
-            ButtonIcon::Pick => accent,
-            ButtonIcon::Trash => Color32::from_rgb(74, 84, 98),
+        let border_color = match (enabled, icon) {
+            (false, _) => Color32::from_rgb(54, 62, 74),
+            (true, ButtonIcon::Pick) => accent,
+            _ => Color32::from_rgb(74, 84, 98),
         };
         let (fill, border_color, content_color) = match state {
+            ButtonState::Active => (Color32::from_rgb(0x18, 0x73, 0x92), accent, Color32::WHITE),
             ButtonState::Normal => {
-                let fill = if response.hovered() {
+                let fill = if enabled && response.hovered() {
                     Color32::from_rgb(53, 61, 73)
                 } else {
                     Color32::from_rgb(38, 44, 54)
@@ -265,6 +277,15 @@ fn draw_button_icon(
             painter.rect_filled(front, 2.0, fill);
             painter.rect_stroke(front, 2.0, Stroke::new(1.4, color), StrokeKind::Inside);
         }
+        ButtonIcon::DefaultPalette => {
+            let stroke = Stroke::new(1.4, color);
+            painter.circle_stroke(center, 8.5, stroke);
+            painter.circle_filled(center + egui::vec2(3.8, 3.0), 3.2, fill);
+            painter.circle_stroke(center + egui::vec2(3.8, 3.0), 3.2, stroke);
+            painter.circle_filled(center + egui::vec2(-4.2, -3.5), 1.7, color);
+            painter.circle_filled(center + egui::vec2(1.2, -5.1), 1.7, color);
+            painter.circle_filled(center + egui::vec2(-5.6, 2.0), 1.7, color);
+        }
         ButtonIcon::Pick => {
             painter.circle_stroke(center, 7.0, Stroke::new(1.6, color));
             painter.line_segment(
@@ -295,6 +316,37 @@ fn draw_button_icon(
                 ],
                 Stroke::new(1.5, color),
             );
+        }
+        ButtonIcon::RelatedPalette => {
+            let handle = Stroke::new(2.0, color);
+            let ferrule = Stroke::new(1.4, color);
+            painter.line_segment(
+                [
+                    center + egui::vec2(-7.0, 7.0),
+                    center + egui::vec2(2.0, -2.0),
+                ],
+                handle,
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(0.0, -4.0),
+                    center + egui::vec2(5.0, 1.0),
+                ],
+                ferrule,
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(-2.5, -1.5),
+                    center + egui::vec2(2.5, 3.5),
+                ],
+                ferrule,
+            );
+            let bristles = vec![
+                center + egui::vec2(2.3, -6.8),
+                center + egui::vec2(8.4, -9.0),
+                center + egui::vec2(6.3, -2.6),
+            ];
+            painter.add(egui::Shape::convex_polygon(bristles, color, Stroke::NONE));
         }
         ButtonIcon::Trash => {
             let stroke = Stroke::new(1.5, color);
@@ -329,6 +381,48 @@ fn draw_button_icon(
                     center + egui::vec2(2.5, -1.0),
                     center + egui::vec2(2.5, 6.0),
                 ],
+                stroke,
+            );
+        }
+        ButtonIcon::Update => {
+            let stroke = Stroke::new(1.5, color);
+            painter.line_segment(
+                [
+                    center + egui::vec2(0.0, -8.0),
+                    center + egui::vec2(0.0, 3.5),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(-4.5, -1.0),
+                    center + egui::vec2(0.0, 3.5),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(4.5, -1.0),
+                    center + egui::vec2(0.0, 3.5),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(-7.0, 8.0),
+                    center + egui::vec2(7.0, 8.0),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(-7.0, 4.0),
+                    center + egui::vec2(-7.0, 8.0),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [center + egui::vec2(7.0, 4.0), center + egui::vec2(7.0, 8.0)],
                 stroke,
             );
         }

@@ -380,6 +380,7 @@ impl VColorPickerApp {
         if let Some(row) = row {
             let copy_button_state = self.copy_button_state(ui.ctx());
             let copy_button_label = match copy_button_state {
+                ButtonState::Active => "Copy",
                 ButtonState::Normal => "Copy",
                 ButtonState::Success => "Copied!",
             };
