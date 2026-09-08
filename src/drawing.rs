@@ -102,13 +102,24 @@ pub fn icon_button_with_state(
         ui.painter().rect_filled(rect, 6.0, fill);
         ui.painter()
             .rect_stroke(rect, 6.0, stroke, StrokeKind::Inside);
-        let icon_center = egui::pos2(rect.left() + 19.0, rect.center().y);
+        let font_id = FontId::proportional(14.0);
+        let text_width = ui
+            .painter()
+            .layout_no_wrap(label.to_owned(), font_id.clone(), content_color)
+            .size()
+            .x;
+        let icon_width = 20.0;
+        let gap = 8.0;
+        let content_width = icon_width + gap + text_width;
+        let content_left = rect.center().x - content_width / 2.0;
+        let icon_center = egui::pos2(content_left + icon_width / 2.0, rect.center().y);
+
         draw_button_icon(ui.painter(), icon, icon_center, content_color);
         ui.painter().text(
-            egui::pos2(rect.left() + 38.0, rect.center().y),
+            egui::pos2(content_left + icon_width + gap, rect.center().y),
             Align2::LEFT_CENTER,
             label,
-            FontId::proportional(14.0),
+            font_id,
             content_color,
         );
     }
