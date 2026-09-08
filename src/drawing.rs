@@ -114,7 +114,7 @@ pub fn icon_button_with_state(
         let content_left = rect.center().x - content_width / 2.0;
         let icon_center = egui::pos2(content_left + icon_width / 2.0, rect.center().y);
 
-        draw_button_icon(ui.painter(), icon, icon_center, content_color);
+        draw_button_icon(ui.painter(), icon, icon_center, content_color, fill);
         ui.painter().text(
             egui::pos2(content_left + icon_width + gap, rect.center().y),
             Align2::LEFT_CENTER,
@@ -151,7 +151,13 @@ pub fn icon_only_button(
             Stroke::new(1.0, border_color),
             StrokeKind::Inside,
         );
-        draw_button_icon(ui.painter(), icon, rect.center(), visuals.text_color());
+        draw_button_icon(
+            ui.painter(),
+            icon,
+            rect.center(),
+            visuals.text_color(),
+            fill,
+        );
     }
 
     response.on_hover_text(tooltip)
@@ -242,7 +248,13 @@ fn draw_checkerboard(painter: &egui::Painter, rect: Rect, cell: f32) {
     }
 }
 
-fn draw_button_icon(painter: &egui::Painter, icon: ButtonIcon, center: Pos2, color: Color32) {
+fn draw_button_icon(
+    painter: &egui::Painter,
+    icon: ButtonIcon,
+    center: Pos2,
+    color: Color32,
+    fill: Color32,
+) {
     match icon {
         ButtonIcon::Copy => {
             let back =
@@ -250,7 +262,7 @@ fn draw_button_icon(painter: &egui::Painter, icon: ButtonIcon, center: Pos2, col
             let front =
                 Rect::from_center_size(center + egui::vec2(2.5, 2.5), Vec2::new(10.0, 12.0));
             painter.rect_stroke(back, 2.0, Stroke::new(1.4, color), StrokeKind::Inside);
-            painter.rect_filled(front, 2.0, Color32::from_rgb(53, 61, 73));
+            painter.rect_filled(front, 2.0, fill);
             painter.rect_stroke(front, 2.0, Stroke::new(1.4, color), StrokeKind::Inside);
         }
         ButtonIcon::Pick => {
