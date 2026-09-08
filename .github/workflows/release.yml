@@ -22,7 +22,7 @@ jobs:
   build-linux:
     name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
-    container: rust:1-bullseye
+    container: rust:1-bookworm
     timeout-minutes: 60
     strategy:
       fail-fast: false
