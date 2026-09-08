@@ -75,10 +75,6 @@ pub fn current_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-pub fn install_latest_release() -> Result<UpdateOutcome> {
-    install_latest_release_with_progress(|_| {})
-}
-
 pub fn install_latest_release_with_progress(
     progress: impl Fn(UpdateProgress),
 ) -> Result<UpdateOutcome> {
