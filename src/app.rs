@@ -387,16 +387,9 @@ impl VColorPickerApp {
             ui.horizontal(|ui| {
                 ui.set_height(42.0);
                 self.render_format_dropdown(ui, &formats);
-                ui.add_sized(
-                    egui::vec2(92.0, 38.0),
-                    egui::Label::new(
-                        RichText::new(row.label)
-                            .monospace()
-                            .color(Color32::from_gray(170)),
-                    ),
-                );
                 let copy_width = 96.0;
-                let value_width = (ui.available_width() - copy_width - 12.0).max(130.0);
+                let value_width =
+                    (ui.available_width() - copy_width - ui.spacing().item_spacing.x).max(130.0);
                 ui.add_sized(
                     egui::vec2(value_width, 38.0),
                     egui::Label::new(RichText::new(&row.value).monospace()).truncate(),
