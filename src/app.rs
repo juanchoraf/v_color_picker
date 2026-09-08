@@ -32,6 +32,7 @@ pub const APP_TITLE: &str = "V_Color_Picker";
 pub struct VColorPickerApp {
     history: Vec<PickRecord>,
     selected: usize,
+    current_color: RgbaColor,
     alpha: f32,
     zoom: f32,
     palette_base: RgbaColor,
@@ -57,6 +58,7 @@ impl VColorPickerApp {
         Self {
             history,
             selected: 0,
+            current_color: selected_color,
             alpha: selected_color.a as f32 / 255.0,
             zoom: DEFAULT_ZOOM,
             palette_base: selected_color,
@@ -72,10 +74,7 @@ impl VColorPickerApp {
     }
 
     fn selected_color(&self) -> RgbaColor {
-        self.history
-            .get(self.selected)
-            .map(|record| record.color)
-            .unwrap_or(RgbaColor::new(80, 186, 255, 255))
+        self.current_color
     }
 
     fn selected_formats(&self) -> Vec<ColorFormat> {
@@ -179,6 +178,7 @@ impl VColorPickerApp {
         self.history.insert(0, PickRecord::from_sample(sample));
         history::clamp(&mut self.history);
         self.selected = 0;
+        self.current_color = color;
         self.alpha = color.a as f32 / 255.0;
         self.palette_base = color;
         self.palette_cursor = [0.5, 0.5];
@@ -227,24 +227,8 @@ impl VColorPickerApp {
         ButtonState::Success
     }
 
-    fn update_selected_color(&mut self, color: RgbaColor, source: &str, update_palette_base: bool) {
-        if let Some(record) = self.history.get_mut(self.selected) {
-            record.color = color;
-            record.source = source.to_owned();
-            record.x = None;
-            record.y = None;
-            record.monitor = None;
-        } else {
-            self.history.push(PickRecord {
-                color,
-                source: source.to_owned(),
-                x: None,
-                y: None,
-                monitor: None,
-            });
-            self.selected = 0;
-        }
-
+    fn update_current_color(&mut self, color: RgbaColor, source: &str, update_palette_base: bool) {
+        self.current_color = color;
         if update_palette_base {
             self.palette_base = color;
             self.palette_cursor = [0.5, 0.5];
@@ -330,7 +314,7 @@ impl VColorPickerApp {
                 let swatch = color::similar_swatch(color, index, 12);
                 let response = small_swatch(ui, swatch);
                 if response.clicked() {
-                    self.update_selected_color(swatch.with_alpha(self.alpha), "swatch", true);
+                    self.update_current_color(swatch.with_alpha(self.alpha), "swatch", true);
                 }
             }
         });
@@ -378,7 +362,7 @@ impl VColorPickerApp {
                 let nx = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
                 let ny = ((pos.y - rect.top()) / rect.height()).clamp(0.0, 1.0);
                 self.palette_cursor = [nx, ny];
-                self.update_selected_color(
+                self.update_current_color(
                     color::palette_color(base, nx, ny).with_alpha(self.alpha),
                     "palette",
                     false,
@@ -516,6 +500,7 @@ impl VColorPickerApp {
     fn select_history(&mut self, index: usize) {
         if let Some(record) = self.history.get(index) {
             self.selected = index;
+            self.current_color = record.color;
             self.alpha = record.color.a as f32 / 255.0;
             self.palette_base = record.color;
             self.palette_cursor = [0.5, 0.5];
@@ -523,10 +508,12 @@ impl VColorPickerApp {
     }
 
     fn clear_history(&mut self, storage: Option<&mut (dyn eframe::Storage + 'static)>) {
+        let color = PickRecord::starter().color;
         self.history.clear();
         self.selected = 0;
+        self.current_color = color;
         self.alpha = 1.0;
-        self.palette_base = PickRecord::starter().color;
+        self.palette_base = color;
         self.palette_cursor = [0.5, 0.5];
         self.status = "History deleted".to_owned();
 
