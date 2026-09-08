@@ -198,6 +198,20 @@ impl VColorPickerApp {
         ctx.request_repaint_after(Duration::from_millis(COPY_FEEDBACK_MS));
     }
 
+    fn copy_selected_format(&mut self, ctx: &egui::Context) {
+        let formats = self.selected_formats();
+        self.ensure_selected_format(&formats);
+
+        if let Some(value) = formats
+            .iter()
+            .find(|row| row.label == self.selected_format.as_str())
+            .or_else(|| formats.first())
+            .map(|row| row.value.clone())
+        {
+            self.copy_text(ctx, &value);
+        }
+    }
+
     fn copy_button_state(&mut self, ctx: &egui::Context) -> ButtonState {
         let Some(until) = self.copy_feedback_until else {
             return ButtonState::Normal;
@@ -553,6 +567,7 @@ impl VColorPickerApp {
                 self.overlay = None;
                 ctx.send_viewport_cmd_to(picker_id, egui::ViewportCommand::Close);
                 self.add_sample(sample);
+                self.copy_selected_format(ctx);
                 self.restore_main_window(ctx, frame);
             }
             OverlayAction::Cancel => {
