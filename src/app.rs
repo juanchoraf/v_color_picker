@@ -1,17 +1,18 @@
 use std::time::{Duration, Instant};
 
 use arboard::Clipboard;
-use eframe::egui::{self, Align, Color32, Layout, Rect, RichText, Sense};
+use eframe::egui::{self, Align, Color32, Layout, RichText};
 
 use crate::color::{self, ColorFormat, RgbaColor};
 use crate::drawing::{
-    ButtonIcon, ButtonState, draw_crosshair, draw_logo_mark, draw_swatch, egui_color, icon_button,
-    icon_button_with_state, small_swatch,
+    ButtonIcon, ButtonState, draw_logo_mark, draw_swatch, icon_button, icon_button_with_state,
+    small_swatch,
 };
 use crate::gui_update::{self, GuiUpdate};
 use crate::history::{self, PickRecord};
 use crate::history_view::{self, HistoryAction};
 use crate::icon;
+use crate::palette::{self, PaletteAction, PaletteTab};
 use crate::picker_overlay::{OverlayAction, PickerOverlay};
 use crate::screen::{ScreenCapture, ScreenSample};
 
@@ -20,7 +21,6 @@ const DEFAULT_FORMAT: &str = "HEX";
 const OUTER_MARGIN: i8 = 24;
 const WORKSPACE_WIDTH: f32 = 520.0;
 const SLIDER_WIDTH: f32 = 220.0;
-const PALETTE_HEIGHT: f32 = 143.0;
 const MIN_ZOOM: f32 = 1.0;
 const MAX_ZOOM: f32 = 25.0;
 const DEFAULT_ZOOM: f32 = 17.0;
@@ -36,7 +36,9 @@ pub struct VColorPickerApp {
     alpha: f32,
     zoom: f32,
     palette_base: RgbaColor,
-    palette_cursor: [f32; 2],
+    related_palette_cursor: [f32; 2],
+    default_palette_cursor: [f32; 2],
+    selected_palette: PaletteTab,
     selected_format: String,
     overlay: Option<PickerOverlay>,
     main_window_hidden_for_picker: bool,
@@ -62,7 +64,9 @@ impl VColorPickerApp {
             alpha: selected_color.a as f32 / 255.0,
             zoom: DEFAULT_ZOOM,
             palette_base: selected_color,
-            palette_cursor: [0.5, 0.5],
+            related_palette_cursor: [0.5, 0.5],
+            default_palette_cursor: color::default_palette_cursor(selected_color),
+            selected_palette: PaletteTab::Related,
             selected_format: DEFAULT_FORMAT.to_owned(),
             overlay: None,
             main_window_hidden_for_picker: false,
@@ -181,7 +185,8 @@ impl VColorPickerApp {
         self.current_color = color;
         self.alpha = color.a as f32 / 255.0;
         self.palette_base = color;
-        self.palette_cursor = [0.5, 0.5];
+        self.related_palette_cursor = [0.5, 0.5];
+        self.default_palette_cursor = color::default_palette_cursor(color);
         self.status = "Color picked".to_owned();
     }
 
@@ -227,11 +232,20 @@ impl VColorPickerApp {
         ButtonState::Success
     }
 
-    fn update_current_color(&mut self, color: RgbaColor, source: &str, update_palette_base: bool) {
+    fn update_current_color(
+        &mut self,
+        color: RgbaColor,
+        source: &str,
+        update_palette_base: bool,
+        update_default_cursor: bool,
+    ) {
         self.current_color = color;
+        if update_default_cursor {
+            self.default_palette_cursor = color::default_palette_cursor(color);
+        }
         if update_palette_base {
             self.palette_base = color;
-            self.palette_cursor = [0.5, 0.5];
+            self.related_palette_cursor = [0.5, 0.5];
         }
 
         self.status = format!("{source} color selected");
@@ -304,8 +318,7 @@ impl VColorPickerApp {
         self.render_formats(ui);
 
         ui.add_space(10.0);
-        ui.label(RichText::new("Related Palette").strong());
-        self.render_palette(ui);
+        self.render_palettes(ui);
 
         ui.add_space(10.0);
         ui.label(RichText::new("Alternatives").strong());
@@ -314,7 +327,7 @@ impl VColorPickerApp {
                 let swatch = color::similar_swatch(color, index, 12);
                 let response = small_swatch(ui, swatch);
                 if response.clicked() {
-                    self.update_current_color(swatch.with_alpha(self.alpha), "swatch", true);
+                    self.update_current_color(swatch.with_alpha(self.alpha), "swatch", true, true);
                 }
             }
         });
@@ -330,51 +343,27 @@ impl VColorPickerApp {
         gui_update::render_bottom_right(ui, &mut self.updates, &mut self.status);
     }
 
-    fn render_palette(&mut self, ui: &mut egui::Ui) {
-        let base = self.palette_base;
-        let size = egui::vec2(ui.available_width().min(WORKSPACE_WIDTH), PALETTE_HEIGHT);
-        let (rect, response) = ui.allocate_exact_size(size, Sense::click_and_drag());
-        let cells_x = 36;
-        let cells_y = 18;
-        let painter = ui.painter();
-
-        for y in 0..cells_y {
-            for x in 0..cells_x {
-                let nx = x as f32 / (cells_x - 1) as f32;
-                let ny = y as f32 / (cells_y - 1) as f32;
-                let color = color::palette_color(base, nx, ny).with_alpha(self.alpha);
-                let cell = Rect::from_min_max(
-                    egui::pos2(
-                        rect.left() + rect.width() * x as f32 / cells_x as f32,
-                        rect.top() + rect.height() * y as f32 / cells_y as f32,
-                    ),
-                    egui::pos2(
-                        rect.left() + rect.width() * (x + 1) as f32 / cells_x as f32,
-                        rect.top() + rect.height() * (y + 1) as f32 / cells_y as f32,
-                    ),
-                );
-                painter.rect_filled(cell, 0.0, egui_color(color));
+    fn render_palettes(&mut self, ui: &mut egui::Ui) {
+        let size = egui::vec2(ui.available_width().min(WORKSPACE_WIDTH), palette::HEIGHT);
+        match palette::render(
+            ui,
+            &mut self.selected_palette,
+            &mut self.related_palette_cursor,
+            &mut self.default_palette_cursor,
+            self.palette_base,
+            self.alpha,
+            size,
+        ) {
+            PaletteAction::None => {}
+            PaletteAction::Select {
+                color,
+                source,
+                update_palette_base,
+                update_default_cursor,
+            } => {
+                self.update_current_color(color, source, update_palette_base, update_default_cursor)
             }
         }
-
-        if response.clicked() || response.dragged() {
-            if let Some(pos) = response.interact_pointer_pos() {
-                let nx = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
-                let ny = ((pos.y - rect.top()) / rect.height()).clamp(0.0, 1.0);
-                self.palette_cursor = [nx, ny];
-                self.update_current_color(
-                    color::palette_color(base, nx, ny).with_alpha(self.alpha),
-                    "palette",
-                    false,
-                );
-            }
-        }
-
-        let cursor = egui::pos2(
-            rect.left() + rect.width() * self.palette_cursor[0],
-            rect.top() + rect.height() * self.palette_cursor[1],
-        );
-        draw_crosshair(painter, cursor, Color32::WHITE, 11.0);
     }
 
     fn render_formats(&mut self, ui: &mut egui::Ui) {
@@ -503,7 +492,8 @@ impl VColorPickerApp {
             self.current_color = record.color;
             self.alpha = record.color.a as f32 / 255.0;
             self.palette_base = record.color;
-            self.palette_cursor = [0.5, 0.5];
+            self.related_palette_cursor = [0.5, 0.5];
+            self.default_palette_cursor = color::default_palette_cursor(record.color);
         }
     }
 
@@ -514,7 +504,8 @@ impl VColorPickerApp {
         self.current_color = color;
         self.alpha = 1.0;
         self.palette_base = color;
-        self.palette_cursor = [0.5, 0.5];
+        self.related_palette_cursor = [0.5, 0.5];
+        self.default_palette_cursor = color::default_palette_cursor(color);
         self.status = "History deleted".to_owned();
 
         if let Some(storage) = storage {

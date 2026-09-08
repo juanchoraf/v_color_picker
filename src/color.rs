@@ -185,6 +185,20 @@ pub fn palette_color(base: RgbaColor, x: f32, y: f32) -> RgbaColor {
     )
 }
 
+pub fn default_palette_color(x: f32, y: f32, alpha: f32) -> RgbaColor {
+    let hue = f64::from(x.clamp(0.0, 1.0)) * 360.0;
+    let lightness = 1.0 - f64::from(y.clamp(0.0, 1.0));
+    hsl_to_rgb(hue, 1.0, lightness, alpha_to_u8(alpha))
+}
+
+pub fn default_palette_cursor(color: RgbaColor) -> [f32; 2] {
+    let (hue, _, lightness) = rgb_to_hsl(color);
+    [
+        (hue / 360.0).clamp(0.0, 1.0) as f32,
+        (1.0 - lightness).clamp(0.0, 1.0) as f32,
+    ]
+}
+
 pub fn similar_swatch(base: RgbaColor, index: usize, total: usize) -> RgbaColor {
     let (h, s, l) = rgb_to_hsl(base);
     let center = (total.saturating_sub(1)) as f64 / 2.0;

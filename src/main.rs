@@ -7,6 +7,7 @@ mod gui_update;
 mod history;
 mod history_view;
 mod icon;
+mod palette;
 mod picker_overlay;
 mod screen;
 mod update;
