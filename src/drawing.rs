@@ -36,7 +36,7 @@ pub fn draw_swatch(ui: &mut egui::Ui, color: RgbaColor, alpha: f32, size: Vec2) 
 pub fn small_swatch(ui: &mut egui::Ui, color: RgbaColor) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(28.0), Sense::click());
     ui.painter().rect_filled(rect, 0.0, egui_color(color));
-    response
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -141,7 +141,7 @@ pub fn icon_button_with_state(
         );
     }
 
-    response
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 pub fn icon_only_button(
@@ -177,7 +177,9 @@ pub fn icon_only_button(
         );
     }
 
-    response.on_hover_text(tooltip)
+    response
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
+        .on_hover_text(tooltip)
 }
 
 pub fn text_button(ui: &mut egui::Ui, label: &str, size: Vec2) -> egui::Response {
@@ -219,7 +221,7 @@ pub fn text_button(ui: &mut egui::Ui, label: &str, size: Vec2) -> egui::Response
         );
     }
 
-    response
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 pub fn draw_crosshair(painter: &egui::Painter, center: Pos2, color: Color32, radius: f32) {

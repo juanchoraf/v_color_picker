@@ -114,7 +114,9 @@ fn render_history_item(ui: &mut egui::Ui, record: &PickRecord, selected: bool) -
             },
         );
 
-        clicked = response.clicked();
+        clicked = response
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked();
     });
 
     clicked

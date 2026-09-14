@@ -465,8 +465,12 @@ impl VColorPickerApp {
                             row.label.to_owned(),
                             row.label,
                         );
+                        )
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
                     }
-                });
+                })
+                .response
+                .on_hover_cursor(egui::CursorIcon::PointingHand);
         });
     }
 
