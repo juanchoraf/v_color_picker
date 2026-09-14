@@ -90,6 +90,9 @@ pub fn icon_button_with_state(
         let content_color = match (enabled, icon) {
             (false, _) => muted,
             (true, ButtonIcon::Pick) => accent,
+            (true, ButtonIcon::Update) if response.hovered() => {
+                Color32::from_rgb(0x6A, 0xE0, 0xB5)
+            }
             _ => visuals.text_color(),
         };
         let border_color = match (enabled, icon) {
@@ -100,7 +103,9 @@ pub fn icon_button_with_state(
         let (fill, border_color, content_color) = match state {
             ButtonState::Active => (Color32::from_rgb(0x18, 0x73, 0x92), accent, Color32::WHITE),
             ButtonState::Normal => {
-                let fill = if enabled && response.hovered() {
+                let fill = if matches!(icon, ButtonIcon::Update) {
+                    Color32::from_rgb(0x1A, 0x20, 0x2A)
+                } else if enabled && response.hovered() {
                     Color32::from_rgb(53, 61, 73)
                 } else {
                     Color32::from_rgb(38, 44, 54)
