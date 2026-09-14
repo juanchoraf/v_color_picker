@@ -46,6 +46,7 @@ pub struct VColorPickerApp {
     copy_feedback_until: Option<Instant>,
     updates: GuiUpdate,
     status: String,
+    startup_placement_pending: bool,
 }
 
 impl VColorPickerApp {
@@ -74,6 +75,7 @@ impl VColorPickerApp {
             copy_feedback_until: None,
             updates: GuiUpdate::new(),
             status: "Ready".to_owned(),
+            startup_placement_pending: true,
         }
     }
 
@@ -464,7 +466,6 @@ impl VColorPickerApp {
                             &mut self.selected_format,
                             row.label.to_owned(),
                             row.label,
-                        );
                         )
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
                     }
@@ -557,6 +558,15 @@ impl VColorPickerApp {
 }
 
 impl eframe::App for VColorPickerApp {
+    fn logic(&mut self, _ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if self.startup_placement_pending
+            && let Some(window) = frame.winit_window()
+        {
+            self.startup_placement_pending = false;
+            crate::window_placement::on_pointer_monitor(window);
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.render_main(ui, frame);
         self.render_overlay(ui.ctx(), frame);

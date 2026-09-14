@@ -11,6 +11,7 @@ mod palette;
 mod picker_overlay;
 mod screen;
 mod update;
+mod window_placement;
 
 use anyhow::Result;
 use eframe::egui;
@@ -28,7 +29,7 @@ fn main() -> Result<()> {
             .with_min_inner_size(window_size)
             .with_resizable(true)
             .with_icon(icon::app_icon()),
-        centered: true,
+        centered: false,
         persist_window: true,
         ..Default::default()
     };

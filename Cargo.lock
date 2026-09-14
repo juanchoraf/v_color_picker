@@ -3739,6 +3739,7 @@ dependencies = [
  "serde_json",
  "ureq",
  "winit",
+ "x11-dl",
  "xcap",
 ]
 
