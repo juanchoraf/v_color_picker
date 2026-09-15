@@ -220,8 +220,7 @@ fn os_score(name: &str) -> Option<i32> {
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        return (name.contains("linux") || name.contains("unix") || name.ends_with(".deb"))
-            .then_some(40);
+        return name.contains(std::env::consts::OS).then_some(40);
     }
 
     #[allow(unreachable_code)]
@@ -259,24 +258,18 @@ fn package_score(name: &str) -> Option<i32> {
 
     #[cfg(target_os = "macos")]
     {
-        return if name.ends_with(".pkg") {
-            Some(100)
-        } else if name.ends_with(".tar.gz") {
-            Some(60)
-        } else {
-            None
-        };
+        return name.ends_with(".pkg").then_some(100);
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        return if name.ends_with(".deb") {
-            Some(100)
-        } else if name.ends_with(".tar.gz") {
-            Some(60)
-        } else {
-            None
+        let extension = match std::env::consts::OS {
+            "linux" => ".deb",
+            "freebsd" | "dragonfly" => ".pkg",
+            "openbsd" | "netbsd" => ".tgz",
+            _ => return None,
         };
+        return name.ends_with(extension).then_some(100);
     }
 
     #[allow(unreachable_code)]
@@ -331,23 +324,12 @@ fn launch_installer(path: &Path) -> Result<()> {
 
     #[cfg(target_os = "macos")]
     {
-        let command = if path.extension().and_then(|ext| ext.to_str()) == Some("pkg") {
-            format!("installer -pkg {} -target /", shell_path(path))
-        } else if path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.ends_with(".tar.gz"))
-        {
-            format!(
-                "/bin/sh -c {} sh {}",
-                shell_single_quote(MACOS_TAR_INSTALL_SCRIPT),
-                shell_path(path)
-            )
-        } else {
+        if path.extension().and_then(|ext| ext.to_str()) != Some("pkg") {
             return Err(anyhow!(
-                "silent automatic updates require a .pkg or .tar.gz asset on macOS"
+                "automatic updates require a .pkg installer on macOS"
             ));
-        };
+        }
+        let command = format!("installer -pkg {} -target /", shell_path(path));
         let script = format!(
             "do shell script {} with administrator privileges",
             applescript_double_quoted(&command)
@@ -362,38 +344,26 @@ fn launch_installer(path: &Path) -> Result<()> {
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        if path.extension().and_then(|ext| ext.to_str()) == Some("deb") {
-            let status = Command::new("pkexec")
-                .arg("dpkg")
-                .arg("-i")
-                .arg(path)
-                .status()
-                .context("failed to run privileged deb installer with pkexec")?;
-            ensure_success(status, "Linux deb installer")?;
-            return Ok(());
-        }
-
-        if path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.ends_with(".tar.gz"))
-        {
-            let status = Command::new("pkexec")
-                .arg("sh")
-                .arg("-c")
-                .arg(UNIX_TAR_INSTALL_SCRIPT)
-                .arg("sh")
-                .arg(path)
-                .status()
-                .context("failed to run privileged tar installer with pkexec")?;
-            ensure_success(status, "Linux tar installer")?;
-            return Ok(());
-        }
-
-        return Err(anyhow!(
-            "no automatic installer is available for {}",
-            path.display()
-        ));
+        let extension = path.extension().and_then(|ext| ext.to_str());
+        let (program, args): (&str, &[&str]) = match (std::env::consts::OS, extension) {
+            ("linux", Some("deb")) => ("dpkg", &["-i"]),
+            ("freebsd" | "dragonfly", Some("pkg")) => ("pkg", &["add", "-f"]),
+            ("openbsd" | "netbsd", Some("tgz")) => ("pkg_add", &["-u"]),
+            _ => {
+                return Err(anyhow!(
+                    "no native installer is available for {}",
+                    path.display()
+                ));
+            }
+        };
+        let status = Command::new("pkexec")
+            .arg(program)
+            .args(args)
+            .arg(path)
+            .status()
+            .context("failed to run privileged native package installer with pkexec")?;
+        ensure_success(status, "Native package installer")?;
+        return Ok(());
     }
 
     #[allow(unreachable_code)]
@@ -483,50 +453,3 @@ fn shell_single_quote(value: &str) -> String {
 fn applescript_double_quoted(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
-
-#[cfg(target_os = "macos")]
-const MACOS_TAR_INSTALL_SCRIPT: &str = r#"set -e
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
-tar -xzf "$1" -C "$tmp"
-app="$(find "$tmp" -maxdepth 3 -type d -name 'v_color_picker.app' | head -n 1)"
-if [ -z "$app" ]; then
-  echo "No v_color_picker.app found in update archive" >&2
-  exit 1
-fi
-rm -rf /Applications/v_color_picker.app
-cp -R "$app" /Applications/
-"#;
-
-#[cfg(all(unix, not(target_os = "macos")))]
-const UNIX_TAR_INSTALL_SCRIPT: &str = r#"set -e
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
-tar -xzf "$1" -C "$tmp"
-bin="$(find "$tmp" -maxdepth 1 -type f \( -name 'v_color_picker' -o -name 'v_color_picker_v*_*.bin' \) | head -n 1)"
-if [ -z "$bin" ]; then
-  echo "No v_color_picker binary found in update archive" >&2
-  exit 1
-fi
-install -Dm755 "$bin" /opt/v_color_picker/v_color_picker
-if [ -f "$tmp/logo.svg" ]; then
-  install -Dm644 "$tmp/logo.svg" /usr/share/icons/hicolor/scalable/apps/v_color_picker.svg
-fi
-install -Dm644 /dev/stdin /usr/share/applications/com.thevelasquez.v_color_picker.desktop <<'DESKTOP'
-[Desktop Entry]
-Type=Application
-Name=v_color_picker
-Comment=Pick and inspect exact screen colors
-Exec=/opt/v_color_picker/v_color_picker
-Icon=v_color_picker
-Terminal=false
-Categories=Graphics;Utility;
-StartupNotify=true
-DESKTOP
-if command -v update-desktop-database >/dev/null 2>&1; then
-  update-desktop-database /usr/share/applications || true
-fi
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-  gtk-update-icon-cache -q /usr/share/icons/hicolor || true
-fi
-"#;

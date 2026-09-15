@@ -32,5 +32,4 @@ apt-get install -y \
   libxkbcommon-dev \
   libwayland-dev \
   pkg-config \
-  zip \
   shared-mime-info

@@ -131,6 +131,11 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+command -v dpkg-deb >/dev/null 2>&1 || {
+  echo "dpkg-deb is required to build the Linux installer." >&2
+  exit 1
+}
+
 cd "$ROOT_DIR"
 VERSION="$(awk -F'"' '/^version = / { print $2; exit }' "$ROOT_DIR/Cargo.toml")"
 RAW_ARCH="$(uname -m)"
@@ -166,10 +171,7 @@ APP_BIN_DIR="$APP_DIR/bin"
 APP_LIB_DIR="$APP_DIR/lib"
 APP_BIN="$APP_BIN_DIR/$APP"
 APP_LAUNCHER="$APP_DIR/$APP"
-TAR_STAGE="$TMP_ROOT/linux_stage"
-BIN_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.bin"
 DEB_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.deb"
-TAR_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.tar.gz"
 MULTIARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || true)"
 
 mkdir -p "$OUT_DIR"
@@ -177,10 +179,6 @@ if [ "$UPDATE_DEPS" -eq 1 ]; then
   cargo update
 fi
 cargo build --release $CARGO_LOCKED --manifest-path "$ROOT_DIR/Cargo.toml"
-
-cp "$ROOT_DIR/target/release/$APP" "$BIN_OUT"
-chmod 755 "$BIN_OUT"
-cp "$ROOT_DIR/assets/logo.svg" "$OUT_DIR/logo.svg"
 
 rm -rf "$DEB_ROOT"
 install -Dm755 "$ROOT_DIR/target/release/$APP" "$APP_BIN"
@@ -305,24 +303,6 @@ fi
 chmod 644 "$DEB_ROOT/DEBIAN/control"
 chmod 755 "$DEB_ROOT/DEBIAN/postinst" "$DEB_ROOT/DEBIAN/postrm"
 
-if command -v dpkg-deb >/dev/null 2>&1; then
-  dpkg-deb --build --root-owner-group "$DEB_ROOT" "$DEB_OUT"
-else
-  echo "dpkg-deb not found; skipped .deb packaging" >&2
-fi
-
-rm -rf "$TAR_STAGE"
-mkdir -p "$TAR_STAGE/bin" "$TAR_STAGE/lib"
-cp "$APP_LAUNCHER" "$TAR_STAGE/$APP"
-cp "$APP_BIN" "$TAR_STAGE/bin/$APP"
-if [ -d "$APP_LIB_DIR" ]; then
-  cp -a "$APP_LIB_DIR/." "$TAR_STAGE/lib/"
-fi
-cp "$ROOT_DIR/assets/logo.svg" "$TAR_STAGE/logo.svg"
-tar -czf "$TAR_OUT" -C "$TAR_STAGE" "$APP" "bin" "lib" "logo.svg"
-cp "$ROOT_DIR/scripts/install_linux.sh" "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_install.sh"
-cp "$ROOT_DIR/scripts/uninstall_linux.sh" "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_uninstall.sh"
-chmod 755 "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_install.sh"
-chmod 755 "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_uninstall.sh"
+dpkg-deb --build --root-owner-group "$DEB_ROOT" "$DEB_OUT"
 
 echo "Release files written to $OUT_DIR"

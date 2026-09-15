@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 022
 
 APP="v_color_picker"
 PUBLISHER="TheVelasquez.com"
@@ -43,6 +44,11 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+command -v pkgbuild >/dev/null 2>&1 || {
+  echo "pkgbuild is required to build the macOS installer." >&2
+  exit 1
+}
+
 cd "$ROOT_DIR"
 VERSION="$(awk -F'"' '/^version = / { print $2; exit }' "$ROOT_DIR/Cargo.toml")"
 RAW_ARCH="$(uname -m)"
@@ -62,9 +68,10 @@ esac
 
 OUT_DIR="$ROOT_DIR/versions/${APP}_v${VERSION}"
 ARTIFACT_ARCH="macos_${ARCH}"
-APP_BUNDLE="$OUT_DIR/${APP}.app"
-PKG_ROOT="$OUT_DIR/pkg_root"
-TAR_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.tar.gz"
+TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${APP}_macos_package.XXXXXX")"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+APP_BUNDLE="$TMP_ROOT/${APP}.app"
+PKG_ROOT="$TMP_ROOT/pkg_root"
 PKG_OUT="$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}.pkg"
 
 mkdir -p "$OUT_DIR"
@@ -96,26 +103,15 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-tar -czf "$TAR_OUT" -C "$OUT_DIR" "${APP}.app"
-
 mkdir -p "$PKG_ROOT/Applications"
 cp -R "$APP_BUNDLE" "$PKG_ROOT/Applications/"
 
-if command -v pkgbuild >/dev/null 2>&1; then
-  pkgbuild \
-    --root "$PKG_ROOT" \
-    --identifier "com.thevelasquez.$APP" \
-    --version "$VERSION" \
-    --install-location "/" \
-    --ownership recommended \
-    "$PKG_OUT"
-else
-  echo "pkgbuild not found; skipped .pkg packaging" >&2
-fi
-
-cp "$ROOT_DIR/scripts/install_macos.sh" "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_install.sh"
-cp "$ROOT_DIR/scripts/uninstall_macos.sh" "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_uninstall.sh"
-chmod 755 "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_install.sh"
-chmod 755 "$OUT_DIR/${APP}_v${VERSION}_${ARTIFACT_ARCH}_uninstall.sh"
+pkgbuild \
+  --root "$PKG_ROOT" \
+  --identifier "com.thevelasquez.$APP" \
+  --version "$VERSION" \
+  --install-location "/" \
+  --ownership recommended \
+  "$PKG_OUT"
 
 echo "Release files written to $OUT_DIR"

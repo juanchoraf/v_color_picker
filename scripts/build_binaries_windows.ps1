@@ -27,12 +27,11 @@ if (-not [Environment]::Is64BitOperatingSystem) {
 
 $Arch = "x86_64"
 $OutDir = Join-Path $RootDir "versions\$($App)_v$Version"
-$Stage = Join-Path $OutDir "windows_stage"
+$Stage = Join-Path ([IO.Path]::GetTempPath()) "$($App)_windows_package_$([guid]::NewGuid())"
 $StageExe = Join-Path $Stage "$App.exe"
 $ArtifactArch = "windows_$Arch"
 $ExeAsset = Join-Path $OutDir "$($App)_v$($Version)_$ArtifactArch.exe"
 $MsiAsset = Join-Path $OutDir "$($App)_v$($Version)_$ArtifactArch.msi"
-$PortableExeAsset = Join-Path $OutDir "$($App)_v$($Version)_$($ArtifactArch)_portable.exe"
 $CertDir = Join-Path $RootDir "certs"
 $CertSubject = "CN=TheVelasquez.com v_color_picker Code Signing"
 $CertPassword = "TheVelasquez.com-v_color_picker-local"
@@ -112,83 +111,84 @@ function Get-InnoSetupCompiler {
   return $null
 }
 
-Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $OutDir, $Stage, $CertDir | Out-Null
-Remove-Item -LiteralPath @($ExeAsset, $MsiAsset, $PortableExeAsset) -Force -ErrorAction SilentlyContinue
-if (-not $NoUpdate) {
-  Push-Location $RootDir
-  try {
-    cargo update
-    if ($LASTEXITCODE -ne 0) {
-      throw "cargo update failed with exit code $LASTEXITCODE"
-    }
-  } finally {
-    Pop-Location
-  }
-}
-
-$CargoArgs = @("build", "--release", "--manifest-path", $Manifest)
-if ($Locked) {
-  $CargoArgs += "--locked"
-}
-& cargo @CargoArgs
-if ($LASTEXITCODE -ne 0) {
-  throw "cargo build failed with exit code $LASTEXITCODE"
-}
-
-Copy-Item (Join-Path $RootDir "target\release\$App.exe") $StageExe -Force
-Copy-Item (Join-Path $RootDir "assets\logo.svg") (Join-Path $Stage "logo.svg") -Force
-Copy-Item (Join-Path $RootDir "assets\logo.svg") (Join-Path $OutDir "logo.svg") -Force
-
-$SigningPfxPath = $CodeSigningCertPath
-$SigningPassword = $CodeSigningCertPassword
-$SigningThumbprint = $CodeSigningCertThumbprint
-$HasConfiguredCodeSigningCertificate = (
-  -not [string]::IsNullOrWhiteSpace($SigningThumbprint) -or
-  -not [string]::IsNullOrWhiteSpace($SigningPfxPath)
-)
-
-if ($RunningInGitHubActions -and -not $HasConfiguredCodeSigningCertificate -and -not $SkipCodeSigning) {
-  Write-Warning "No V_COLOR_PICKER_CODESIGN_* secret configured. Building unsigned Windows artifacts in GitHub Actions."
-  $SkipCodeSigning = $true
-}
-
-if (-not $SkipCodeSigning -and [string]::IsNullOrWhiteSpace($SigningThumbprint)) {
-  if (-not [string]::IsNullOrWhiteSpace($SigningPfxPath)) {
-    $SigningPfxPath = (Resolve-Path $SigningPfxPath).Path
-    if ($RunningInGitHubActions -and [string]::IsNullOrEmpty($SigningPassword)) {
-      throw "V_COLOR_PICKER_CODESIGN_PASSWORD is required when V_COLOR_PICKER_CODESIGN_PFX is configured in GitHub Actions."
-    }
-  } else {
-    $Cert = Get-ChildItem Cert:\CurrentUser\My |
-      Where-Object { $_.Subject -eq $CertSubject } |
-      Select-Object -First 1
-
-    if (-not $Cert) {
-      $Cert = New-SelfSignedCertificate `
-        -Type CodeSigningCert `
-        -Subject $CertSubject `
-        -KeyUsage DigitalSignature `
-        -FriendlyName "$DisplayName local code signing" `
-        -CertStoreLocation Cert:\CurrentUser\My
-    }
-
-    $SecurePassword = ConvertTo-SecureString $CertPassword -AsPlainText -Force
-    Export-PfxCertificate -Cert $Cert -FilePath $PfxPath -Password $SecurePassword -Force | Out-Null
-    Export-Certificate -Cert $Cert -FilePath $CerPath -Force | Out-Null
-    Import-Certificate -FilePath $CerPath -CertStoreLocation Cert:\CurrentUser\TrustedPublisher | Out-Null
-    Import-Certificate -FilePath $CerPath -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
-    $SigningPfxPath = $PfxPath
-    $SigningPassword = $CertPassword
-  }
-}
-
-Sign-IfPossible -Path $StageExe -PfxPath $SigningPfxPath -Password $SigningPassword -Thumbprint $SigningThumbprint
-Copy-Item $StageExe $PortableExeAsset -Force
-
 $Wix = Get-Command wix.exe -ErrorAction SilentlyContinue
-if ($Wix) {
-  $Wxs = Join-Path $OutDir "$App.wxs"
+$Iscc = Get-InnoSetupCompiler
+if (-not $Wix -or -not $Iscc) {
+  throw "WiX wix.exe and Inno Setup ISCC.exe are required to build both Windows installers."
+}
+
+try {
+  New-Item -ItemType Directory -Force -Path $OutDir, $Stage, $CertDir | Out-Null
+  Remove-Item -LiteralPath @($ExeAsset, $MsiAsset) -Force -ErrorAction SilentlyContinue
+  if (-not $NoUpdate) {
+    Push-Location $RootDir
+    try {
+      cargo update
+      if ($LASTEXITCODE -ne 0) {
+        throw "cargo update failed with exit code $LASTEXITCODE"
+      }
+    } finally {
+      Pop-Location
+    }
+  }
+
+  $CargoArgs = @("build", "--release", "--manifest-path", $Manifest)
+  if ($Locked) {
+    $CargoArgs += "--locked"
+  }
+  & cargo @CargoArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "cargo build failed with exit code $LASTEXITCODE"
+  }
+
+  Copy-Item (Join-Path $RootDir "target\release\$App.exe") $StageExe -Force
+  Copy-Item (Join-Path $RootDir "assets\logo.svg") (Join-Path $Stage "logo.svg") -Force
+
+  $SigningPfxPath = $CodeSigningCertPath
+  $SigningPassword = $CodeSigningCertPassword
+  $SigningThumbprint = $CodeSigningCertThumbprint
+  $HasConfiguredCodeSigningCertificate = (
+    -not [string]::IsNullOrWhiteSpace($SigningThumbprint) -or
+    -not [string]::IsNullOrWhiteSpace($SigningPfxPath)
+  )
+
+  if ($RunningInGitHubActions -and -not $HasConfiguredCodeSigningCertificate -and -not $SkipCodeSigning) {
+    Write-Warning "No V_COLOR_PICKER_CODESIGN_* secret configured. Building unsigned Windows artifacts in GitHub Actions."
+    $SkipCodeSigning = $true
+  }
+
+  if (-not $SkipCodeSigning -and [string]::IsNullOrWhiteSpace($SigningThumbprint)) {
+    if (-not [string]::IsNullOrWhiteSpace($SigningPfxPath)) {
+      $SigningPfxPath = (Resolve-Path $SigningPfxPath).Path
+      if ($RunningInGitHubActions -and [string]::IsNullOrEmpty($SigningPassword)) {
+        throw "V_COLOR_PICKER_CODESIGN_PASSWORD is required when V_COLOR_PICKER_CODESIGN_PFX is configured in GitHub Actions."
+      }
+    } else {
+      $Cert = Get-ChildItem Cert:\CurrentUser\My |
+        Where-Object { $_.Subject -eq $CertSubject } |
+        Select-Object -First 1
+
+      if (-not $Cert) {
+        $Cert = New-SelfSignedCertificate `
+          -Type CodeSigningCert `
+          -Subject $CertSubject `
+          -KeyUsage DigitalSignature `
+          -FriendlyName "$DisplayName local code signing" `
+          -CertStoreLocation Cert:\CurrentUser\My
+      }
+
+      $SecurePassword = ConvertTo-SecureString $CertPassword -AsPlainText -Force
+      Export-PfxCertificate -Cert $Cert -FilePath $PfxPath -Password $SecurePassword -Force | Out-Null
+      Export-Certificate -Cert $Cert -FilePath $CerPath -Force | Out-Null
+      Import-Certificate -FilePath $CerPath -CertStoreLocation Cert:\CurrentUser\TrustedPublisher | Out-Null
+      Import-Certificate -FilePath $CerPath -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
+      $SigningPfxPath = $PfxPath
+      $SigningPassword = $CertPassword
+    }
+  }
+
+  Sign-IfPossible -Path $StageExe -PfxPath $SigningPfxPath -Password $SigningPassword -Thumbprint $SigningThumbprint
+  $Wxs = Join-Path $Stage "$App.wxs"
   Set-Content -Path $Wxs -Encoding UTF8 -Value @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="$DisplayName" Manufacturer="$Publisher" Version="$Version" UpgradeCode="8f812a7d-4e61-4c59-9fc5-44df6ad67f8a">
@@ -220,19 +220,13 @@ if ($Wix) {
   </Package>
 </Wix>
 "@
-  $WixArgs = @("build", "-acceptEula", $WixEulaId, "-arch", "x64", "-o", $MsiAsset, $Wxs)
+  $WixArgs = @("build", "-acceptEula", $WixEulaId, "-arch", "x64", "-pdbtype", "none", "-o", $MsiAsset, $Wxs)
   & $Wix.Source @WixArgs
   if ($LASTEXITCODE -ne 0) {
     throw "wix.exe failed with exit code $LASTEXITCODE"
   }
   Sign-IfPossible -Path $MsiAsset -PfxPath $SigningPfxPath -Password $SigningPassword -Thumbprint $SigningThumbprint
-} else {
-  Write-Warning "WiX wix.exe not found; skipped .msi packaging."
-}
-
-$Iscc = Get-InnoSetupCompiler
-if ($Iscc) {
-  $Iss = Join-Path $OutDir "$App.iss"
+  $Iss = Join-Path $Stage "$App.iss"
   Set-Content -Path $Iss -Encoding UTF8 -Value @"
 [Setup]
 AppId={{9D2B4F32-0FF1-4A91-A08A-0F3B9E2E29A5}
@@ -267,11 +261,8 @@ Filename: "{app}\$App.exe"; Description: "Open $DisplayName"; Flags: postinstall
     throw "Inno Setup failed with exit code $LASTEXITCODE"
   }
   Sign-IfPossible -Path $ExeAsset -PfxPath $SigningPfxPath -Password $SigningPassword -Thumbprint $SigningThumbprint
-} else {
-  Write-Warning "Inno Setup ISCC.exe not found; skipped .exe installer packaging. Portable app binary: $PortableExeAsset"
+
+  Write-Host "Release files written to $OutDir"
+} finally {
+  Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
 }
-
-Copy-Item (Join-Path $RootDir "scripts\install_windows.ps1") (Join-Path $OutDir "$($App)_v$($Version)_$($ArtifactArch)_install.ps1") -Force
-Copy-Item (Join-Path $RootDir "scripts\uninstall_windows.ps1") (Join-Path $OutDir "$($App)_v$($Version)_$($ArtifactArch)_uninstall.ps1") -Force
-
-Write-Host "Release files written to $OutDir"

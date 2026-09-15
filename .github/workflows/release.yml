@@ -57,7 +57,7 @@ jobs:
       - name: Install Linux build dependencies
         shell: bash
         timeout-minutes: 15
-        run: bash scripts/install_linux_build_deps.sh
+        run: bash scripts/setup_linux_build_env.sh
 
       - name: Build artifacts on Linux
         shell: bash
@@ -68,7 +68,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: v_color_picker-${{ matrix.name }}
-          path: versions/v_color_picker_v*/v_color_picker_v*
+          path: |
+            versions/v_color_picker_v*/v_color_picker_v*_linux_*.deb
           if-no-files-found: error
 
   build-native:
@@ -170,7 +171,10 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: v_color_picker-${{ matrix.name }}
-          path: versions/v_color_picker_v*/v_color_picker_v*
+          path: |
+            versions/v_color_picker_v*/v_color_picker_v*_macos_*.pkg
+            versions/v_color_picker_v*/v_color_picker_v*_windows_x86_64.exe
+            versions/v_color_picker_v*/v_color_picker_v*_windows_x86_64.msi
           if-no-files-found: error
 
   publish:
@@ -191,7 +195,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets-flat
-          find release-assets -type f -name 'v_color_picker_v*' -exec cp -f {} release-assets-flat/ \;
+          find release-assets -type f \( \
+            -name 'v_color_picker_v*_linux_*.deb' -o \
+            -name 'v_color_picker_v*_macos_*.pkg' -o \
+            -name 'v_color_picker_v*_windows_x86_64.exe' -o \
+            -name 'v_color_picker_v*_windows_x86_64.msi' \) \
+            -exec cp -f {} release-assets-flat/ \;
 
           asset_count=$(find release-assets-flat -maxdepth 1 -type f | wc -l)
           if [ "$asset_count" -eq 0 ]; then

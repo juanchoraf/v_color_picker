@@ -50,7 +50,7 @@ Example flow:
 
 `v_color_picker` is GUI-only. The bottom-right controls show the installed
 version and an Update button. Update checks the release source and installs the
-latest matching binary from `https://github.com/juanchoraf/v_color_picker` over
+latest matching native installer from `https://github.com/juanchoraf/v_color_picker` over
 the current installation when a newer release is available.
 
 ## Notes
@@ -58,7 +58,7 @@ the current installation when a newer release is available.
 - Linux screen capture support depends on the active display server and desktop
   permissions. X11 and Wayland portal capture are supported by the vendored
   capture backend.
-- GitHub Linux release packages are built on a Debian Bullseye baseline to keep
+- GitHub Linux release packages are built on a Debian Bookworm baseline to keep
   the required `libc6` version broadly compatible. The `.deb` bundles the
   safe runtime libraries used by the app, including `libgcc_s`, `libxcb`,
   `libXau`, `libXdmcp`, `libbsd`, and `libmd`.
