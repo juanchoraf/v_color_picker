@@ -12,7 +12,7 @@
 [package]
 edition = "2024"
 name = "xcap"
-version = "0.9.8"
+version = "0.9.10"
 build = "build.rs"
 autolib = false
 autobins = false

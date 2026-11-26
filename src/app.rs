@@ -44,6 +44,7 @@ pub struct VColorPickerApp {
     main_window_hidden_for_picker: bool,
     main_focus_retry_frames: u8,
     copy_feedback_until: Option<Instant>,
+    clipboard: Option<Clipboard>,
     updates: GuiUpdate,
     status: String,
     startup_placement_pending: bool,
@@ -73,6 +74,7 @@ impl VColorPickerApp {
             main_window_hidden_for_picker: false,
             main_focus_retry_frames: 0,
             copy_feedback_until: None,
+            clipboard: None,
             updates: GuiUpdate::new(),
             status: "Ready".to_owned(),
             startup_placement_pending: true,
@@ -193,7 +195,22 @@ impl VColorPickerApp {
     }
 
     fn copy_text(&mut self, ctx: &egui::Context, value: &str) {
-        match Clipboard::new().and_then(|mut clipboard| clipboard.set_text(value.to_owned())) {
+        // A persistent clipboard instance is required: dropping the last
+        // arboard `Clipboard` destroys its X11 window and the selection
+        // ownership is lost unless a clipboard manager takes over.
+        let result = match self.clipboard.as_mut() {
+            Some(clipboard) => clipboard.set_text(value.to_owned()),
+            None => match Clipboard::new() {
+                Ok(mut clipboard) => {
+                    let result = clipboard.set_text(value.to_owned());
+                    self.clipboard = Some(clipboard);
+                    result
+                }
+                Err(error) => Err(error),
+            },
+        };
+
+        match result {
             Ok(()) => self.status = format!("Copied {value}"),
             Err(_) => {
                 ctx.copy_text(value.to_owned());

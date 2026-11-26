@@ -156,7 +156,7 @@ impl GuiUpdate {
         let mut close_modal = false;
         let mut restart_error = None;
 
-        egui::Modal::new(egui::Id::new("v_color_picker_update_modal"))
+        egui::Modal::new(egui::Id::unique("v_color_picker_update_modal"))
             .backdrop_color(Color32::from_black_alpha(150))
             .show(ctx, |ui| {
                 ui.set_width(MODAL_WIDTH);
